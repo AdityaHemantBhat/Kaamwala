@@ -26,7 +26,7 @@ const envSchema = z.object({
   CF_SECRET_KEY: z.string(),
   CF_PAYOUT_APP_ID: z.string().optional(),
   CF_PAYOUT_SECRET_KEY: z.string().optional(),
-  CF_ENV: z.string().default('SANDBOX'),
+  CF_ENV: z.enum(['SANDBOX', 'PRODUCTION']).default('SANDBOX'),
   // 32-byte key (base64) for AES-256-GCM encryption-at-rest of chat messages.
   // Generate: node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
   MESSAGE_ENCRYPTION_KEY: z.string().min(44),
@@ -38,28 +38,27 @@ const envSchema = z.object({
 }).superRefine((val, ctx) => {
   if (val.NODE_ENV !== 'production') return;
 
-  // Production must never run against the Cashfree sandbox or without payout
-  // credentials — otherwise payouts would silently go nowhere (or nowhere real).
-  if (val.CF_ENV !== 'PRODUCTION') {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ['CF_ENV'],
-      message: 'CF_ENV must be PRODUCTION when NODE_ENV is production',
-    });
-  }
-  if (!val.CF_PAYOUT_APP_ID || !val.CF_PAYOUT_SECRET_KEY) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ['CF_PAYOUT_APP_ID'],
-      message: 'Cashfree payout credentials (CF_PAYOUT_APP_ID, CF_PAYOUT_SECRET_KEY) are required in production',
-    });
-  }
+  // ENABLE_DEV_BACKDOORS=true in production is a hard fail — it exposes fixed
+  // OTPs, mock payments and other bypasses that must never reach real users.
   if (val.ENABLE_DEV_BACKDOORS === 'true') {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       path: ['ENABLE_DEV_BACKDOORS'],
       message: 'ENABLE_DEV_BACKDOORS must be false in production',
     });
+  }
+
+  // Warn (but do not crash) when running production with sandbox payment config.
+  // Upgrade to PRODUCTION keys when you are ready to accept real payments.
+  if (val.CF_ENV !== 'PRODUCTION') {
+    console.warn(
+      '[env] WARNING: CF_ENV is not PRODUCTION — Cashfree is in sandbox mode. Real payments will not work.',
+    );
+  }
+  if (!val.CF_PAYOUT_APP_ID || !val.CF_PAYOUT_SECRET_KEY) {
+    console.warn(
+      '[env] WARNING: CF_PAYOUT_APP_ID / CF_PAYOUT_SECRET_KEY are not set — payouts will be skipped.',
+    );
   }
 });
 
