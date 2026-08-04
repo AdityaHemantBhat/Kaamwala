@@ -17,6 +17,8 @@ process.on('unhandledRejection', (reason) => {
   logger.error('Unhandled promise rejection:', reason instanceof Error ? reason.stack || reason.message : reason);
 });
 process.on('uncaughtException', (err) => {
+  // console.error is synchronous — guaranteed to flush before process.exit.
+  console.error('UNCAUGHT EXCEPTION:', err?.stack || err?.message || err);
   logger.error('Uncaught exception:', err?.stack || err?.message || err);
   process.exit(1);
 });

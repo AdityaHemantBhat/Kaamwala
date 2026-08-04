@@ -62,7 +62,16 @@ const envSchema = z.object({
   }
 });
 
-export const env = envSchema.parse(process.env);
+let env: z.infer<typeof envSchema>;
+try {
+  env = envSchema.parse(process.env);
+} catch (err: any) {
+  // Use console.error (synchronous) so Render captures the message before exit.
+  console.error('❌ [env] Environment validation failed. The server cannot start.');
+  console.error(err?.message ?? err);
+  process.exit(1);
+}
+export { env };
 
 /**
  * True only when development/test bypasses are EXPLICITLY enabled via
