@@ -1,0 +1,21 @@
+import axios from 'axios';
+
+import { env } from '../config/env';
+
+const api = axios.create({
+  baseURL: env.API_URL,
+});
+
+export interface VerifyOtpPayload {
+  phone: string;
+  otp: string;
+  role?: string;
+  fcmToken?: string | null;
+  deviceInfo?: Record<string, unknown> | null;
+}
+
+export const authApi = {
+  sendOtp: (phone: string, opts?: { appHash?: string | null }) =>
+    api.post('/auth/send-otp', { phone, appHash: opts?.appHash }).then(res => res.data.data),
+  verifyOtp: (payload: VerifyOtpPayload) => api.post('/auth/verify-otp', payload).then(res => res.data.data),
+};

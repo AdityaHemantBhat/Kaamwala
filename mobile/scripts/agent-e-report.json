@@ -1,0 +1,24 @@
+{
+  "newKeys": [
+    "The Honest Work Network",
+    "WAIT...",
+    "Requested",
+    "On The Way",
+    "Hold for SOS",
+    "Press and hold to send an emergency alert",
+    "Job",
+    "Customer reported:",
+    "right now.",
+    "Needs help"
+  ],
+  "filesEdited": [
+    "src/components/ui/BrandLaunchScreen.tsx",
+    "src/components/ui/BrutalButton.tsx",
+    "src/components/ui/BrutalHeader.tsx",
+    "src/components/ui/OutlineButton.tsx",
+    "src/components/ui/RebookSheet.tsx",
+    "src/components/ui/StatusTracker.tsx",
+    "src/components/ui/SOSButton.tsx",
+    "src/components/ui/UrgentJobModal.tsx"
+  ]
+}

@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+
+# Environment & secrets — NEVER commit
+.env
+.env.*
+!.env.example
+
+# JWT signing keys
+keys/
+
+# Logs
+*.log
+logs/
+
+# Build output
+dist/
+build/
+
+# Prisma
+prisma/migrations/dev.db*
+prisma/dev.db*
+
+# Tests
+coverage/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+.vscode/
+.idea/
+
+# Misc local dev artifacts
+*.tgz

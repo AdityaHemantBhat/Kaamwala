@@ -1,0 +1,29 @@
+# Normalise line endings to LF in the repository (checked-out on Windows as CRLF)
+* text=auto eol=lf
+
+# Binary assets — never mangle
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.jks binary
+*.p8 binary
+*.p12 binary
+*.mobileprovision binary
+
+# JSON/Lottie animations
+*.json text eol=lf
+
+# TypeScript / JavaScript source
+*.ts text eol=lf
+*.tsx text eol=lf
+*.js text eol=lf
+*.jsx text eol=lf
+
+# Config files
+*.json text eol=lf
+*.md text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf

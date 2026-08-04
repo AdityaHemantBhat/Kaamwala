@@ -1,0 +1,46 @@
+# ── Dependencies ──────────────────────────────────────────────
+node_modules/
+
+# ── Environment / Secrets ─────────────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ── Build Outputs ─────────────────────────────────────────────
+dist/
+build/
+web-build/
+
+# ── Expo / React Native ───────────────────────────────────────
+mobile/.expo/
+mobile/expo-env.d.ts
+mobile/.metro-health-check*
+
+# ── Generated native folders (Expo managed workflow) ──────────
+mobile/ios/
+mobile/android/
+
+# ── Logs ──────────────────────────────────────────────────────
+*.log
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# ── Native signing & certs ────────────────────────────────────
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.pem
+
+# ── OS files ──────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── TypeScript ────────────────────────────────────────────────
+*.tsbuildinfo
+
+# ── Editor ────────────────────────────────────────────────────
+.vscode/
+.idea/
