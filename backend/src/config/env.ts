@@ -30,6 +30,10 @@ const envSchema = z.object({
   // 32-byte key (base64) for AES-256-GCM encryption-at-rest of chat messages.
   // Generate: node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
   MESSAGE_ENCRYPTION_KEY: z.string().min(44),
+  // RSA key pair — set these in Render/production env vars instead of using PEM files.
+  // In local dev, leave unset and the app reads from keys/access.*.pem on disk.
+  JWT_PRIVATE_KEY: z.string().optional(),
+  JWT_PUBLIC_KEY: z.string().optional(),
   API_URL: z.string().default('http://localhost:5000'),
   JWT_ACCESS_EXPIRES_IN: z.string().default('15m'),
   JWT_REFRESH_EXPIRES_IN: z.string().default('7d'),

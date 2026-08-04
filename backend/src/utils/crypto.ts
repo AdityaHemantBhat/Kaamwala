@@ -3,10 +3,20 @@ import path from 'path';
 import jwt from 'jsonwebtoken';
 import { env } from '../config/env';
 
-// Keys are provisioned via scripts/generate-keys.ts. Keep them out of VCS
-// (gitignored) and rotate via a secret manager in production.
-const privateKey = fs.readFileSync(path.join(process.cwd(), 'keys/access.private.pem'));
-const publicKey = fs.readFileSync(path.join(process.cwd(), 'keys/access.public.pem'));
+// In production (Render), JWT_PRIVATE_KEY and JWT_PUBLIC_KEY are set as
+// environment variables (multi-line PEM, with literal \n replaced by newlines).
+// In local dev, they are read from keys/access.*.pem on disk.
+function loadKey(envVar: string | undefined, filename: string): Buffer | string {
+  if (envVar && envVar.trim().length > 0) {
+    // Environment variable — replace escaped newlines if pasted as single line
+    return envVar.replace(/\\n/g, '\n');
+  }
+  const filePath = path.join(process.cwd(), 'keys', filename);
+  return fs.readFileSync(filePath);
+}
+
+const privateKey = loadKey(env.JWT_PRIVATE_KEY, 'access.private.pem');
+const publicKey = loadKey(env.JWT_PUBLIC_KEY, 'access.public.pem');
 
 export function signAccessToken(payload: object): string {
   return jwt.sign(payload, privateKey, {
