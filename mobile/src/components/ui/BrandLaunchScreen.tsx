@@ -18,7 +18,7 @@ const AnimatedImage = Animated.createAnimatedComponent(Image);
 interface BrandLaunchScreenProps {
   onFinish?: () => void;
  /** Total time the launch screen is visible before it fades out. */
-  duration?: number;
+  duration?: number; // Default: 3500ms (3.5 seconds)
 }
 
 /**
@@ -32,7 +32,7 @@ interface BrandLaunchScreenProps {
  */
 export function BrandLaunchScreen({
   onFinish,
-  duration = 5000,
+  duration = 3500, // Changed from 5000 to 3500 (3.5 seconds)
 }: BrandLaunchScreenProps) {
   const t = useT();
   const reduced = useReducedMotion();
@@ -53,7 +53,6 @@ export function BrandLaunchScreen({
   const wordOp = useSharedValue(reduced ? 1 : 0);
   const wordY = useSharedValue(0);
   const tagOp = useSharedValue(reduced ? 1 : 0);
-  const barW = useSharedValue(0);
   const overlayOp = useSharedValue(1);
 
   useEffect(() => {
@@ -68,10 +67,6 @@ export function BrandLaunchScreen({
       wordY.value = withDelay(650, withTiming(0, { duration: 600, easing: Easing.out(Easing.cubic) }));
       tagOp.value = withDelay(1050, withTiming(1, { duration: 550, easing: Easing.out(Easing.cubic) }));
     }
-    barW.value = withTiming(1, {
-      duration: Math.max(total - 500, 600),
-      easing: Easing.inOut(Easing.cubic),
-    });
 
     const fadeMs = reduced ? 200 : 350;
     const timer = setTimeout(() => {
@@ -94,7 +89,6 @@ export function BrandLaunchScreen({
     transform: [{ translateY: wordY.value }],
   }));
   const tagStyle = useAnimatedStyle(() => ({ opacity: tagOp.value }));
-  const barStyle = useAnimatedStyle(() => ({ width: `${barW.value * 100}%` }));
 
   return (
     <Animated.View style={[styles.container, overlayStyle]}>
@@ -115,11 +109,6 @@ export function BrandLaunchScreen({
         <Animated.Text style={[styles.tagline, tagStyle]}>
           {t('The Honest Work Network')}
         </Animated.Text>
-
-        {/* Hairline progress shimmer */}
-        <View style={styles.barTrack}>
-          <Animated.View style={[styles.barFill, barStyle]} />
-        </View>
       </View>
     </Animated.View>
   );
@@ -153,18 +142,5 @@ const styles = StyleSheet.create({
     color: Colors.inkFaint,
     marginTop: 12,
     letterSpacing: 0.2,
-  },
-  barTrack: {
-    width: 170,
-    height: 2,
-    backgroundColor: Colors.creamDark,
-    borderRadius: 1,
-    overflow: 'hidden',
-    marginTop: 38,
-  },
-  barFill: {
-    height: '100%',
-    backgroundColor: Colors.orange,
-    borderRadius: 1,
   },
 });

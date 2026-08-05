@@ -9,6 +9,7 @@ import { apiClient } from '../../api/client';
 import { socketService } from '../../api/socket';
 import { useT } from '../../utils/i18n';
 import { env } from '../../config/env';
+import { getCachedLocation, cacheLocation } from '../../utils/locationCache';
 
 // Interactive map shell mounted once; markers move in place via injected
 // window.updateMarkers / window.setDestination. OSRM route is throttled.
@@ -161,14 +162,25 @@ export default function LiveTracking() {
 
   const loadTracking = async () => {
     try {
+      // Check cache first - if valid, show cached location immediately while fetching fresh data
+      const cached = getCachedLocation(bookingId);
+      if (cached && (Math.abs(cached.lat) > 1 || Math.abs(cached.lng) > 1)) {
+        moveWorker(cached.lat, cached.lng);
+      }
+
+      // Fetch fresh data in background
       const res = await apiClient.get(`/tracking/${bookingId}`);
       const d = res.data?.data;
       setWorkerName(d?.workerName || t('Worker'));
       setEta(d?.workerEta ?? null);
       setArrivalOtp(d?.arrivalOtp || null);
+      
+      // Cache and display updated location
       if (typeof d?.workerLat === 'number' && typeof d?.workerLng === 'number' && (Math.abs(d.workerLat) > 1 || Math.abs(d.workerLng) > 1)) {
+        cacheLocation(bookingId, d.workerLat, d.workerLng);
         moveWorker(d.workerLat, d.workerLng);
       }
+      
       if (typeof d?.customerLat === 'number' && typeof d?.customerLng === 'number') {
         placeDestination(d.customerLat, d.customerLng);
       }

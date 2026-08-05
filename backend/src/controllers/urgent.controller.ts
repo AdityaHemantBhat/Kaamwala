@@ -28,6 +28,22 @@ async function isUrgentPremiumWaived(customerId: string): Promise<boolean> {
   } catch { return false; }
 }
 
+/**
+ * Close every open offer round for an urgent request when it finishes
+ * (accepted / cancelled / expired). Rounds are the audit trail of the offer
+ * escalation, so each must be stamped with when it ended and why.
+ */
+export async function closeUrgentRounds(urgentRequestId: string, outcome: 'ACCEPTED' | 'CANCELLED' | 'EXPIRED'): Promise<void> {
+  try {
+    await prisma.urgentOfferRound.updateMany({
+      where: { urgentRequestId, endedAt: null },
+      data: { endedAt: new Date(), outcome },
+    });
+  } catch (e) {
+    logger.error('Failed to close urgent offer rounds', { error: (e as Error).message, urgentRequestId, outcome });
+  }
+}
+
 export const urgentController = {
   previewUrgent: async (req: AuthRequest, res: Response) => {
     try {
@@ -261,6 +277,7 @@ export const urgentController = {
         where: { id: requestId },
         data: { status: 'CANCELLED' }
       });
+      await closeUrgentRounds(requestId, 'CANCELLED');
 
       getIo().emit('urgent_cancelled', { requestId });
       return sendResponse(res, 200, { message: 'Cancelled successfully' });
@@ -306,6 +323,9 @@ export const urgentController = {
 
       const urgentReq = await prisma.urgentRequest.findUnique({ where: { id: requestId } });
       if (!urgentReq) return sendError(res, 404, 'Request missing');
+
+      // Close the offer-round audit trail now that the auction has a winner.
+      await closeUrgentRounds(requestId, 'ACCEPTED');
 
       // Use PaymentCalculationService to compute all amounts for urgent booking
       // Requirements: 1.2, 3.2, 8.2 - URGENT bookings have 0% commission

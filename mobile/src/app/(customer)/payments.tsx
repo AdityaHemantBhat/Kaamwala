@@ -12,6 +12,7 @@ import { router } from 'expo-router';
 import { getTransactionMeta, formatSignedINR } from '../../utils/transactionMeta';
 import { SkeletonWalletPaymentsBody } from '../../components/ui/SkeletonScreenLayouts';
 import { env } from '../../config/env';
+import { formatMoneyWithSymbol, parseMoneyInput } from '../../utils/money';
 
 const QUICK_AMOUNTS = [500, 1000, 2000, 5000];
 
@@ -65,8 +66,8 @@ export default function PaymentsScreen() {
   };
 
   const handleAddMoney = async () => {
-    const amt = parseInt(addAmount);
-    if (!amt || amt < 1) { showToast({ message: t('Enter a valid amount'), type: 'error' }); return; }
+    const amt = parseMoneyInput(addAmount);
+    if (!Number.isFinite(amt) || amt < 1) { showToast({ message: t('Enter a valid amount'), type: 'error' }); return; }
     setProcessing(true);
     try {
       // 1. Create a real Cashfree order for the top-up.
@@ -96,8 +97,8 @@ export default function PaymentsScreen() {
   };
 
   const handleWithdraw = async () => {
-    const amt = parseInt(withdrawAmount);
-    if (!amt || amt < 1) { showToast({ message: t('Enter a valid amount'), type: 'error' }); return; }
+    const amt = parseMoneyInput(withdrawAmount);
+    if (!Number.isFinite(amt) || amt < 1) { showToast({ message: t('Enter a valid amount'), type: 'error' }); return; }
     if (withdrawMethod === 'UPI') {
       if (!withdrawUpi.includes('@')) { showToast({ message: t('Enter a valid UPI ID'), type: 'error' }); return; }
     } else {
@@ -155,7 +156,7 @@ export default function PaymentsScreen() {
                 <MaterialCommunityIcons name="wallet-outline" size={18} color="#F5F0E8" />
               </View>
             </View>
-            <Text style={{ fontFamily: 'SpaceMono_700Bold', fontSize: 36, color: '#F5F0E8', letterSpacing: 1, marginBottom: 16 }}>₹{walletBalance}</Text>
+            <Text style={{ fontFamily: 'SpaceMono_700Bold', fontSize: 36, color: '#F5F0E8', letterSpacing: 1, marginBottom: 16 }}>{formatMoneyWithSymbol(walletBalance)}</Text>
             <View style={{ height: 1, backgroundColor: 'rgba(255,255,255,0.1)', marginBottom: 16 }} />
             <View style={{ flexDirection: 'row', gap: 10 }}>
               <Pressable onPress={() => setShowAddModal(true)} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: '#FF5C00', borderRadius: 12, paddingVertical: 12 }}>
@@ -238,8 +239,8 @@ export default function PaymentsScreen() {
             <View style={{ flexDirection: 'row', gap: 8 }}>
               {QUICK_AMOUNTS.map(a => (
                 <Pressable key={a} onPress={() => setAddAmount(String(a))}
-                  style={{ flex: 1, paddingVertical: 10, borderRadius: 12, backgroundColor: parseInt(addAmount) === a ? '#FF5C00' : '#F5F0E8', alignItems: 'center' }}>
-                  <Text style={{ fontFamily: 'SpaceMono_700Bold', fontSize: 12, color: parseInt(addAmount) === a ? '#FFF' : '#0D0D0D' }}>₹{a}</Text>
+                  style={{ flex: 1, paddingVertical: 10, borderRadius: 12, backgroundColor: Number(addAmount) === a ? '#FF5C00' : '#F5F0E8', alignItems: 'center' }}>
+                  <Text style={{ fontFamily: 'SpaceMono_700Bold', fontSize: 12, color: Number(addAmount) === a ? '#FFF' : '#0D0D0D' }}>₹{a}</Text>
                 </Pressable>
               ))}
             </View>
@@ -250,7 +251,7 @@ export default function PaymentsScreen() {
             </View>
             <Pressable onPress={handleAddMoney} disabled={!addAmount || processing}
               style={{ backgroundColor: '#FF5C00', borderRadius: 14, paddingVertical: 16, alignItems: 'center', opacity: (!addAmount || processing) ? 0.5 : 1 }}>
-              {processing ? <ActivityIndicator size="small" color="#FFF" /> : <Text style={{ fontFamily: 'Inter_700Bold', fontSize: 16, color: '#FFF' }}>{t('Add')} ₹{parseInt(addAmount) || 0}</Text>}
+              {processing ? <ActivityIndicator size="small" color="#FFF" /> : <Text style={{ fontFamily: 'Inter_700Bold', fontSize: 16, color: '#FFF' }}>{t('Add')} {formatMoneyWithSymbol(parseMoneyInput(addAmount))}</Text>}
             </Pressable>
           </View>
         </View>
@@ -263,7 +264,7 @@ export default function PaymentsScreen() {
           <View style={{ backgroundColor: '#FFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40, gap: 16 }}>
             <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: '#E0E0E0', alignSelf: 'center', marginBottom: 4 }} />
             <Text style={{ fontFamily: 'Inter_700Bold', fontSize: 20, color: '#0D0D0D', textAlign: 'center' }}>{t('Withdraw Funds')}</Text>
-            <Text style={{ fontFamily: 'Inter_400Regular', fontSize: 13, color: '#6B6B6B', textAlign: 'center' }}>{t('Available Balance')}: ₹{walletBalance}</Text>
+            <Text style={{ fontFamily: 'Inter_400Regular', fontSize: 13, color: '#6B6B6B', textAlign: 'center' }}>{t('Available Balance')}: {formatMoneyWithSymbol(walletBalance)}</Text>
             <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#F5F0E8', borderRadius: 14, paddingHorizontal: 16, height: 52 }}>
               <Text style={{ fontFamily: 'SpaceMono_700Bold', fontSize: 18, color: '#0D0D0D', marginRight: 8 }}>₹</Text>
               <TextInput style={{ flex: 1, fontFamily: 'SpaceMono_700Bold', fontSize: 20, color: '#0D0D0D', height: '100%' }}
@@ -312,8 +313,8 @@ export default function PaymentsScreen() {
               </View>
             )}
 
-            <Pressable onPress={handleWithdraw} disabled={!withdrawAmount || processing || parseInt(withdrawAmount) > walletBalance}
-              style={{ backgroundColor: '#0D0D0D', borderRadius: 14, paddingVertical: 16, alignItems: 'center', opacity: (!withdrawAmount || processing || parseInt(withdrawAmount) > walletBalance) ? 0.4 : 1 }}>
+            <Pressable onPress={handleWithdraw} disabled={!withdrawAmount || processing || (parseMoneyInput(withdrawAmount) || 0) > walletBalance}
+              style={{ backgroundColor: '#0D0D0D', borderRadius: 14, paddingVertical: 16, alignItems: 'center', opacity: (!withdrawAmount || processing || (parseMoneyInput(withdrawAmount) || 0) > walletBalance) ? 0.4 : 1 }}>
               {processing ? <ActivityIndicator size="small" color="#FFF" /> : <Text style={{ fontFamily: 'Inter_700Bold', fontSize: 16, color: '#FFF' }}>{t('Withdraw')}</Text>}
             </Pressable>
           </View>

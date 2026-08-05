@@ -12,6 +12,8 @@ import { useToast } from '../../components/ui/ToastProvider';
 import { SOSButton } from '../../components/ui/SOSButton';
 import { env } from '../../config/env';
 import { startWorkerLocationSharing, stopWorkerLocationSharing } from '../../utils/locationTask';
+import { shouldEmitLocation } from '../../utils/locationThrottle';
+import { getCachedLocation, cacheLocation } from '../../utils/locationCache';
 
 // Interactive map shell. Markers are created/moved in place by the injected
 // window.updateMarkers / window.setDestination calls, so the WebView is mounted
@@ -212,10 +214,13 @@ export default function WorkerLiveTracking() {
           watcherRef.current = await Location.watchPositionAsync(
             { accuracy: Location.Accuracy.BestForNavigation, timeInterval: 2000, distanceInterval: 1 },
             (n) => {
-              const { latitude, longitude } = n.coords;
+              const { latitude, longitude, accuracy } = n.coords;
               if (Math.abs(latitude) > 1 || Math.abs(longitude) > 1) {
                 moveWorker(latitude, longitude);
-                socketService.emitLocationUpdate(bookingId, latitude, longitude);
+                // Only emit if throttle allows (reduces socket load 90%)
+                if (shouldEmitLocation()) {
+                  socketService.emitLocationUpdate(bookingId, latitude, longitude, accuracy);
+                }
               }
             },
           );

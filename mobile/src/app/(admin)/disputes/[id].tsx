@@ -7,6 +7,7 @@ import { useT } from '../../../utils/i18n';
 import { apiClient } from '../../../api/client';
 import { useToast } from '../../../components/ui/ToastProvider';
 import { BrutalInkLoader } from '../../../components/ui/BrutalInkLoader';
+import { useAuthStore } from '../../../store/auth.store';
 
 const STATUS_STYLE: Record<string, { color: string; bg: string; icon: string; label: string }> = {
   PENDING: { color: '#B06000', bg: '#FEF7E0', icon: 'clock-outline', label: 'Pending' },
@@ -74,7 +75,10 @@ export default function DisputeDetailScreen() {
   }
 
   const ss = STATUS_STYLE[dispute.decision] || STATUS_STYLE.PENDING;
-  const isAdmin = ['ADMIN', 'SUPER_ADMIN'].includes(dispute.raisedByRole);
+  // `raisedByRole` is CUSTOMER or WORKER — the resolve action belongs to the
+  // ADMIN viewing this screen, so gate on the viewer's role, not the raiser's.
+  const viewerRole = useAuthStore((s) => s.user?.role);
+  const isAdmin = ['ADMIN', 'SUPER_ADMIN'].includes(viewerRole || '');
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
@@ -248,7 +252,7 @@ export default function DisputeDetailScreen() {
         )}
 
         {/* Admin Actions */}
-        {['ADMIN', 'SUPER_ADMIN'].includes(dispute.raisedByRole) && dispute.decision === 'PENDING' && (
+        {isAdmin && dispute.decision === 'PENDING' && (
           <View style={styles.actionSection}>
             <Text style={styles.actionTitle}>{t('Admin Actions')}</Text>
             <Pressable style={styles.resolveBtn} onPress={() => setModalVisible(true)}>

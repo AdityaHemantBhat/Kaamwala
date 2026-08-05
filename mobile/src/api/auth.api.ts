@@ -12,6 +12,8 @@ export interface VerifyOtpPayload {
   role?: string;
   fcmToken?: string | null;
   deviceInfo?: Record<string, unknown> | null;
+  /** The user's selected app language (e.g. "en") — persisted to the account. */
+  preferredLang?: string;
 }
 
 export const authApi = {

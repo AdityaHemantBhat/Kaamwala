@@ -121,6 +121,12 @@ export const negotiationController = {
         data: { status: 'ACCEPTED', finalPrice: lastOffer.amount },
       });
 
+      // Stamp the accepted offer with when it was responded to.
+      await prisma.negotiationOffer.update({
+        where: { id: lastOffer.id },
+        data: { respondedAt: new Date() },
+      });
+
       await prisma.booking.update({
         where: { id: req.params.bookingId },
         data: {
@@ -153,7 +159,10 @@ export const negotiationController = {
         return sendError(res, 403, 'Not your booking');
       }
 
-      const negotiation = await prisma.negotiation.findUnique({ where: { bookingId: req.params.bookingId } });
+      const negotiation = await prisma.negotiation.findUnique({
+        where: { bookingId: req.params.bookingId },
+        include: { offers: { orderBy: { createdAt: 'desc' }, take: 1 } },
+      });
       if (!negotiation || negotiation.status !== 'OPEN') {
         return sendError(res, 400, 'No active negotiation');
       }
@@ -162,6 +171,15 @@ export const negotiationController = {
         where: { id: negotiation.id },
         data: { status: 'REJECTED' },
       });
+
+      // Stamp the outstanding offer as responded-to (rejected).
+      const latest = negotiation.offers[0];
+      if (latest) {
+        await prisma.negotiationOffer.update({
+          where: { id: latest.id },
+          data: { respondedAt: new Date() },
+        });
+      }
 
       sendResponse(res, 200, null, 'Negotiation rejected');
     } catch (e: any) {

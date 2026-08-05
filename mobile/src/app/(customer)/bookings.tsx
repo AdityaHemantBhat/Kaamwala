@@ -26,6 +26,8 @@ import { apiClient } from '../../api/client';
 import { useToast } from '../../components/ui/ToastProvider';
 import { SkeletonCard } from '../../components/ui/Skeleton';
 import { SkeletonCustomerBookingsBody } from '../../components/ui/SkeletonScreenLayouts';
+import BookingAddressPicker from '../../components/ui/BookingAddressPicker';
+import { formatMoneyWithSymbol } from '../../utils/money';
 import LottieView from 'lottie-react-native';
 import { socketService } from '../../api/socket';
 
@@ -175,7 +177,7 @@ export default function CustomerBookings() {
   const [cancelPreview, setCancelPreview] = useState<any>(null);
 
   // ── Booking Flow State ──
-  const { pendingWorkerBookingId, setPendingWorkerBookingId } = useBookingStore();
+  const { pendingWorkerBookingId, pendingWorkerData, pendingService, clearPendingBooking } = useBookingStore();
   const [bookModalVisible, setBookModalVisible] = useState(false);
   const [selectedWorker, setSelectedWorker] = useState<any>(null);
   const [selectedService, setSelectedService] = useState<any>(null);
@@ -185,33 +187,47 @@ export default function CustomerBookings() {
   // navigate to. Defaults to their saved default address.
   const [addresses, setAddresses] = useState<any[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
+  const [addressPickerOpen, setAddressPickerOpen] = useState(false);
 
+  const selectedAddress = useMemo(
+    () => addresses.find((a: any) => a.id === selectedAddressId) || null,
+    [addresses, selectedAddressId],
+  );
+
+  // Load the customer's saved addresses. Async + non-blocking — the booking
+  // modal renders immediately and the address list fills in as it arrives.
+  const loadAddresses = useCallback(async () => {
+    try {
+      const res = await apiClient.get('/addresses');
+      const addrs = Array.isArray(res.data?.data) ? res.data.data : [];
+      setAddresses(addrs);
+      setSelectedAddressId((prev) => prev || addrs.find((a: any) => a.isDefault)?.id || addrs[0]?.id || null);
+    } catch {}
+  }, []);
+
+  // Open the "Send Booking Request" modal INSTANTLY using the worker + service
+  // the profile screen cached in the store. Addresses load in the background —
+  // the modal never waits on a network call to appear.
   useEffect(() => {
-    if (pendingWorkerBookingId) {
-      // Fetch worker details + saved addresses to populate the modal
+    if (!pendingWorkerBookingId) return;
+    const workerData = pendingWorkerData || null;
+    setSelectedWorker(workerData);
+    setSelectedService(pendingService ?? workerData?.services?.[0] ?? null);
+    setBookModalVisible(true);
+    // Consumed — allows re-booking the same worker later in the session.
+    clearPendingBooking();
+    loadAddresses();
+    if (!workerData) {
+      // Edge case (deep link / cold start): no cached worker — fetch in the
+      // background so the sheet still populates.
       (async () => {
         try {
-          const [wRes, aRes] = await Promise.all([
-            apiClient.get(`/workers/${pendingWorkerBookingId}`),
-            apiClient.get('/addresses'),
-          ]);
-          const workerData = wRes.data?.data;
-          const addrs = Array.isArray(aRes.data?.data) ? aRes.data.data : [];
-          setAddresses(addrs);
-          setSelectedAddressId(addrs.find((a: any) => a.isDefault)?.id || addrs[0]?.id || null);
-          if (workerData) {
-            setSelectedWorker(workerData);
-            if (workerData.services && workerData.services.length > 0) {
-              setSelectedService(workerData.services[0]);
-            }
-            setBookModalVisible(true);
-          }
-        } catch (e: any) {
-          showToast({ message: t('Failed to load booking details'), type: 'error' });
-          setPendingWorkerBookingId(null);
-        }
+          const res = await apiClient.get(`/workers/${pendingWorkerBookingId}`);
+          setSelectedWorker(res.data?.data);
+        } catch {}
       })();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingWorkerBookingId]);
 
   const handleCreateBooking = async () => {
@@ -236,7 +252,7 @@ export default function CustomerBookings() {
       await apiClient.post('/bookings', payload);
       showToast({ message: t('Booking request sent successfully!'), type: 'success' });
       setBookModalVisible(false);
-      setPendingWorkerBookingId(null);
+      clearPendingBooking();
       fetchBookings();
     } catch (e: any) {
       showToast({ message: e?.response?.data?.error || t('Failed to create booking'), type: 'error' });
@@ -893,7 +909,7 @@ export default function CustomerBookings() {
                 ) : (
                   <>
                     <MaterialCommunityIcons name="wallet" size={20} color="#FFF" style={{ marginRight: 8 }} />
-                    <Text style={{ fontSize: 16, fontFamily: 'Inter_600SemiBold', color: '#FFF' }}>{t('Pay with Wallet')} (₹{walletBalance})</Text>
+                    <Text style={{ fontSize: 16, fontFamily: 'Inter_600SemiBold', color: '#FFF' }}>{t('Pay with Wallet')} ({formatMoneyWithSymbol(walletBalance)})</Text>
                   </>
                 )}
               </TouchableOpacity>
@@ -1214,45 +1230,53 @@ export default function CustomerBookings() {
                   </View>
                 )}
 
-                {/* Service location — exact coords the worker navigates to */}
+                {/* Service location — exact coords the worker navigates to.
+                    Opens a picker that supports switching addresses AND adding a
+                    brand-new address without leaving the modal. */}
                 <View style={{ marginBottom: 20 }}>
                   <Text style={{ fontFamily: 'Inter_600SemiBold', fontSize: 14, color: '#0D0D0D', marginBottom: 10 }}>{t('Service Location')} *</Text>
-                  {addresses.length === 0 ? (
-                    <Pressable
-                      style={{ backgroundColor: '#FFF0E8', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: '#FF5C00' }}
-                      onPress={() => router.push('/(customer)/addresses')}
-                    >
-                      <Text style={{ fontFamily: 'Inter_600SemiBold', fontSize: 13, color: '#FF5C00' }}>{t('Add an address first')}</Text>
-                    </Pressable>
+                  {addressPickerOpen ? (
+                    <BookingAddressPicker
+                      addresses={addresses}
+                      selectedAddressId={selectedAddressId}
+                      onSelect={(addrId) => { setSelectedAddressId(addrId); setAddressPickerOpen(false); }}
+                      onAdd={(addr) => {
+                        setAddresses((prev) => [...prev, addr]);
+                        setSelectedAddressId(addr.id);
+                        setAddressPickerOpen(false);
+                      }}
+                      onClose={() => setAddressPickerOpen(false)}
+                    />
+                  ) : selectedAddress ? (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF0E8', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: '#FF5C00' }}>
+                      <View style={{ flex: 1 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                          <MaterialCommunityIcons name="map-marker-outline" size={14} color="#FF5C00" />
+                          <Text style={{ fontFamily: 'Inter_600SemiBold', fontSize: 12, color: '#0D0D0D' }}>
+                            {selectedAddress.label || t('Address')}
+                          </Text>
+                        </View>
+                        <Text style={{ fontFamily: 'Inter_400Regular', fontSize: 11, color: '#6B6B6B' }} numberOfLines={2}>
+                          {[selectedAddress.line1, selectedAddress.landmark, selectedAddress.city].filter(Boolean).join(', ')}
+                        </Text>
+                      </View>
+                      <Pressable
+                        onPress={() => setAddressPickerOpen(true)}
+                        hitSlop={10}
+                        style={{ marginLeft: 10, padding: 6 }}
+                        accessibilityRole="button"
+                        accessibilityLabel={t('Change address')}
+                      >
+                        <MaterialCommunityIcons name="pencil-outline" size={18} color="#FF5C00" />
+                      </Pressable>
+                    </View>
                   ) : (
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10 }}>
-                      {addresses.map((addr: any) => {
-                        const active = selectedAddressId === addr.id;
-                        const addrLine = [addr.line1, addr.landmark, addr.city].filter(Boolean).join(', ');
-                        return (
-                          <Pressable
-                            key={addr.id}
-                            style={{
-                              padding: 12, borderRadius: 12, borderWidth: 1,
-                              borderColor: active ? '#FF5C00' : '#DDD',
-                              backgroundColor: active ? '#FFF0E8' : '#FFF',
-                              minWidth: 160, maxWidth: 220,
-                            }}
-                            onPress={() => setSelectedAddressId(addr.id)}
-                          >
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                              <MaterialCommunityIcons name="map-marker-outline" size={14} color={active ? '#FF5C00' : '#9E9E9E'} />
-                              <Text style={{ fontFamily: 'Inter_600SemiBold', fontSize: 12, color: active ? '#FF5C00' : '#0D0D0D' }}>
-                                {addr.label || t('Address')}
-                              </Text>
-                            </View>
-                            <Text style={{ fontFamily: 'Inter_400Regular', fontSize: 11, color: '#6B6B6B' }} numberOfLines={2}>
-                              {addrLine}
-                            </Text>
-                          </Pressable>
-                        );
-                      })}
-                    </ScrollView>
+                    <Pressable
+                      style={{ backgroundColor: '#FFF0E8', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: '#FF5C00', alignItems: 'center' }}
+                      onPress={() => setAddressPickerOpen(true)}
+                    >
+                      <Text style={{ fontFamily: 'Inter_600SemiBold', fontSize: 13, color: '#FF5C00' }}>{t('Add a service location')}</Text>
+                    </Pressable>
                   )}
                 </View>
 
@@ -1279,7 +1303,7 @@ export default function CustomerBookings() {
                   style={{ alignItems: 'center', paddingVertical: 8 }}
                   onPress={() => {
                     setBookModalVisible(false);
-                    setPendingWorkerBookingId(null);
+                    clearPendingBooking();
                   }}
                 >
                   <Text style={{ fontSize: 14, fontFamily: 'Inter_500Medium', color: '#6B6B6B' }}>{t('Cancel')}</Text>

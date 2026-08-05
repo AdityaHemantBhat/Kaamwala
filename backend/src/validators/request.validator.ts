@@ -19,6 +19,8 @@ export const createRequestSchema = z.object({
     images: z.array(z.string().url()).max(6).optional(),
     addressId: z.string().nullish(),
     recommendationExposed: z.boolean().optional(),
+    /** The platform-recommended reference price the customer was shown, if any. */
+    recommendedPrice: z.number().positive().optional(),
     city: z.string().optional(),
     pincode: z.string().optional(),
     scheduledDate: z.string().optional(),

@@ -7,6 +7,7 @@ import { useAuthStore } from '../../store/auth.store';
 import { TransitionOverlay } from '../../components/ui/TransitionOverlay';
 import { INDIAN_LANGUAGES } from '../../utils/languages';
 import { setLanguage, getCurrentLang, useT } from '../../utils/i18n';
+import { apiClient } from '../../api/client';
 
 export default function CustomerSettings() {
   const t = useT();
@@ -17,7 +18,13 @@ export default function CustomerSettings() {
 
   const renderLanguageItem = useCallback(({ item }: { item: any }) => (
     <Pressable style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#F0EBE0' }}
-      onPress={() => { setSelectedLang(item.code); setLanguage(item.code); setShowLang(false); }}>
+      onPress={() => {
+        setSelectedLang(item.code);
+        setLanguage(item.code);
+        setShowLang(false);
+        // Persist the account language so it survives reinstalls.
+        apiClient.put('/auth/profile', { preferredLang: item.code }).catch(() => {});
+      }}>
       <View style={{ flex: 1 }}>
         <Text style={{ fontFamily: 'Inter_400Regular', fontSize: 15, color: '#0D0D0D' }}>{item.name}</Text>
         <Text style={{ fontFamily: 'Inter_400Regular', fontSize: 12, color: '#9E9E9E', marginTop: 1 }}>{item.native}</Text>

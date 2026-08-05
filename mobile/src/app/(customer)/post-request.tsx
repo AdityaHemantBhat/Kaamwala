@@ -230,13 +230,25 @@ export default function PostRequest() {
     })();
   }, []);
 
-  // Structured scope config for the selected issue
+  // Structured scope config for the selected issue.
+  // The backend wraps the field-map as `{ label, scopeConfig }`; the field map
+  // itself lives under `scopeConfig` (null when the issue has no structured
+  // scope). Tolerate a payload that already IS the field map (legacy shape).
   useEffect(() => {
     if (!issueId) { setScopeConfig(null); setScopeValues({}); return; }
     (async () => {
       try {
         const res = await apiClient.get(`/issues/scope/${issueId}`);
-        setScopeConfig(res.data?.data || null);
+        const payload = res.data?.data;
+        let fieldMap: any = null;
+        if (payload && typeof payload === 'object') {
+          if (payload.scopeConfig && typeof payload.scopeConfig === 'object') {
+            fieldMap = payload.scopeConfig;          // `{ label, scopeConfig }` wrapper
+          } else if (typeof payload.label === 'undefined' && typeof payload.scopeConfig === 'undefined') {
+            fieldMap = payload;                       // legacy: payload is the field map
+          }
+        }
+        setScopeConfig(fieldMap);
         setScopeValues({});
       } catch { setScopeConfig(null); }
     })();
@@ -346,6 +358,9 @@ export default function PostRequest() {
   };
 
   const renderScopeField = (key: string, cfg: any) => {
+    // Defensive: a malformed scope entry (null / string / array) must never
+    // crash the form — it is simply skipped.
+    if (!cfg || typeof cfg !== 'object') return null;
     const value = scopeValues[key] ?? '';
     return (
       <View key={key} style={styles.formBlock}>
@@ -435,6 +450,10 @@ export default function PostRequest() {
         scope: Object.keys(scopeValues).length ? scopeValues : undefined,
         addressId: selectedAddressId || undefined,
         recommendationExposed: usingRecommended,
+        // Record what the platform recommended so market observations from this
+        // request can be flagged as recommendation-influenced (prevents data
+        // poisoning of the pricing model).
+        recommendedPrice: recommendation?.reference,
         city: city.trim() || undefined,
       });
       showToast({ message: t('Request posted! Workers in your area will see it.'), type: 'success' });

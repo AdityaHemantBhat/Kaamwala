@@ -28,6 +28,11 @@ export default function WorkerVerificationWizard() {
   const [consentGranted, setConsentGranted] = useState(false);
   const [proofType, setProofType] = useState<string | null>(null);
   const [submission, setSubmission] = useState<any>(null);
+  // Stable per-wizard idempotency key — re-submitting after a network failure
+  // reuses the same key so the backend never creates a duplicate submission.
+  const [clientRequestId] = useState(() =>
+    `sub_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`,
+  );
   const [frontUri, setFrontUri] = useState<string | null>(null);
   const [backUri, setBackUri] = useState<string | null>(null);
   const [selfieUri, setSelfieUri] = useState<string | null>(null);
@@ -149,6 +154,7 @@ export default function WorkerVerificationWizard() {
         consentGranted,
         consentVersion: config.consentVersion,
         consentPolicyVersion: config.policyVersion,
+        clientRequestId,
       });
       showToast({ message: t('Verification submitted successfully!'), type: 'success' });
       router.back();

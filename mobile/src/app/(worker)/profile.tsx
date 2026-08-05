@@ -114,14 +114,24 @@ export default function WorkerProfile() {
       setSearchQuery('');
       return;
     }
-    setEditModal({ field, value: '' });
+    // Pre-fill the current value so the worker edits, not retypes.
+    const current =
+      field === 'skills'
+        ? (Array.isArray(profile?.skills) ? profile.skills.join(', ') : '')
+        : profile?.[field] != null ? String(profile[field]) : '';
+    setEditModal({ field, value: current });
   };
 
   const handleSave = async (field: string, value: string) => {
     if (!value.trim()) return;
     setSaving(true);
     try {
-      await apiClient.put('/auth/profile', { [field]: value });
+      if (field === 'skills') {
+        const skills = value.split(',').map((s) => s.trim()).filter(Boolean);
+        await apiClient.put('/auth/profile', { skills });
+      } else {
+        await apiClient.put('/auth/profile', { [field]: value });
+      }
       // Update local store so dashboard reflects changes immediately
       if (field === 'name') updateUser({ name: value } as any);
       showToast({ message: t('Updated'), type: 'success' });
@@ -247,7 +257,8 @@ export default function WorkerProfile() {
   const FIELD_LABELS: Record<string, string> = {
     name: 'Name', category: 'Category', state: 'State', city: 'City',
     experienceYears: 'Experience', hourlyRate: 'Rate',
-    upiId: 'UPI ID', bankAccountNumber: 'Bank A/c', bankIfsc: 'IFSC'
+    upiId: 'UPI ID', bankAccountNumber: 'Bank A/c', bankIfsc: 'IFSC',
+    skills: 'Skills', pincode: 'Pincode',
   };
 
   return (
@@ -615,6 +626,8 @@ export default function WorkerProfile() {
             )}
             {renderField('Experience', profile?.experienceYears ? `${profile.experienceYears} ${t('yrs')}` : '', 'experienceYears')}
             {renderField('Rate', profile?.hourlyRate ? `₹${profile.hourlyRate}/${t(profile?.priceUnit || 'visit')}` : '', 'hourlyRate')}
+            {renderField('Skills', Array.isArray(profile?.skills) && profile.skills.length ? profile.skills.join(', ') : '', 'skills')}
+            {renderField('Pincode', profile?.pincode, 'pincode')}
           </View>
         </View>
 

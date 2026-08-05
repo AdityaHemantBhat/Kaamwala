@@ -8,6 +8,7 @@ import { TransitionOverlay } from '../../components/ui/TransitionOverlay';
 import { socketService } from '../../api/socket';
 import { INDIAN_LANGUAGES } from '../../utils/languages';
 import { setLanguage, getCurrentLang, useT } from '../../utils/i18n';
+import { apiClient } from '../../api/client';
 
 export default function WorkerSettings() {
   const t = useT();
@@ -20,7 +21,14 @@ export default function WorkerSettings() {
 
   const renderLanguageItem = useCallback(({ item }: { item: any }) => (
     <Pressable style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#F0EBE0' }}
-      onPress={() => { setSelectedLang(item.code); setLanguage(item.code); setShowLang(false); }}>
+      onPress={() => {
+        setSelectedLang(item.code);
+        setLanguage(item.code);
+        setShowLang(false);
+        // Persist the selection to the worker profile + account so it survives
+        // reinstalls and is visible server-side (languages defaulted to ["hi"]).
+        apiClient.put('/auth/profile', { languages: [item.code], preferredLang: item.code }).catch(() => {});
+      }}>
       <View style={{ flex: 1 }}>
         <Text style={{ fontFamily: 'Inter_400Regular', fontSize: 15, color: '#0D0D0D' }}>{item.name}</Text>
         <Text style={{ fontFamily: 'Inter_400Regular', fontSize: 12, color: '#9E9E9E', marginTop: 1 }}>{item.native}</Text>

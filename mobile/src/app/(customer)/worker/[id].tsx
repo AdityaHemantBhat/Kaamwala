@@ -16,12 +16,18 @@ export default function WorkerDetailScreen() {
   const router = useRouter();
   const [worker, setWorker] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  // The customer picks the exact service here — it is remembered in the booking
+  // store so the booking screen never asks them to select it again.
+  const [selectedService, setSelectedService] = useState<any>(null);
 
   useEffect(() => {
     (async () => {
       try {
         const res = await apiClient.get(`/workers/${id}`);
-        setWorker(res.data?.data);
+        const data = res.data?.data;
+        setWorker(data);
+        // Default to the worker's first listed service.
+        if (data?.services?.length) setSelectedService(data.services[0]);
       } catch {} finally { setLoading(false); }
     })();
   }, [id]);
@@ -104,27 +110,59 @@ export default function WorkerDetailScreen() {
           </View>
         )}
 
-        {/* Services */}
+        {/* Services — select the service to book right here. The choice is
+            remembered in the booking store so the booking screen opens with it
+            pre-filled and never asks the customer to pick again. */}
         {worker.services?.length > 0 && (
           <View style={{ marginBottom: 24 }}>
-            <Text style={{ fontFamily: 'Inter_600SemiBold', fontSize: 13, color: '#0D0D0D', marginBottom: 10 }}>{t('Services')}</Text>
-            {worker.services.map((s: any) => (
-              <View key={s.id} style={{ backgroundColor: '#FFF', borderRadius: 12, padding: 14, marginBottom: 8, elevation: 1 }}>
-                <Text style={{ fontFamily: 'Inter_600SemiBold', fontSize: 14, color: '#0D0D0D' }}>{s.name}</Text>
-                {s.description && <Text style={{ fontFamily: 'Inter_400Regular', fontSize: 12, color: '#6B6B6B', marginTop: 2 }}>{s.description}</Text>}
-                <Text style={{ fontFamily: 'SpaceMono_700Bold', fontSize: 14, color: '#FF5C00', marginTop: 4 }}>₹{s.basePrice}</Text>
-              </View>
-            ))}
+            <Text style={{ fontFamily: 'Inter_600SemiBold', fontSize: 13, color: '#0D0D0D', marginBottom: 10 }}>{t('Select Service')}</Text>
+            {worker.services.map((s: any) => {
+              const active = selectedService?.id === s.id;
+              return (
+                <Pressable
+                  key={s.id}
+                  onPress={() => setSelectedService(s)}
+                  style={({ pressed }) => [{
+                    backgroundColor: active ? '#FFF0E8' : '#FFF',
+                    borderRadius: 12,
+                    padding: 14,
+                    marginBottom: 8,
+                    elevation: 1,
+                    borderWidth: 1.5,
+                    borderColor: active ? '#FF5C00' : 'transparent',
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                  }, pressed && { opacity: 0.8 }]}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: active }}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontFamily: 'Inter_600SemiBold', fontSize: 14, color: '#0D0D0D' }}>{s.name}</Text>
+                    {s.description && <Text style={{ fontFamily: 'Inter_400Regular', fontSize: 12, color: '#6B6B6B', marginTop: 2 }} numberOfLines={2}>{s.description}</Text>}
+                    <Text style={{ fontFamily: 'SpaceMono_700Bold', fontSize: 14, color: '#FF5C00', marginTop: 4 }}>₹{s.basePrice}</Text>
+                  </View>
+                  <MaterialCommunityIcons
+                    name={active ? 'check-circle' : 'circle-outline'}
+                    size={22}
+                    color={active ? '#FF5C00' : '#C8C0B0'}
+                    style={{ marginLeft: 10 }}
+                  />
+                </Pressable>
+              );
+            })}
           </View>
         )}
 
         {/* Book Now */}
-        <Pressable style={{ backgroundColor: '#FF5C00', borderRadius: 16, paddingVertical: 16, alignItems: 'center', elevation: 3 }}
+        <Pressable
+          style={{ backgroundColor: '#FF5C00', borderRadius: 16, paddingVertical: 16, alignItems: 'center', elevation: 3, opacity: worker.services?.length ? 1 : 0.7 }}
           onPress={() => {
-            useBookingStore.getState().setPendingWorkerBookingId(id);
+            useBookingStore.getState().setPendingBooking(id, worker, selectedService);
             router.push('/(customer)/bookings');
           }}>
-          <Text style={{ fontFamily: 'Inter_700Bold', fontSize: 16, color: '#FFF' }}>{t('Book')} {name.split(' ')[0]}</Text>
+          <Text style={{ fontFamily: 'Inter_700Bold', fontSize: 16, color: '#FFF' }}>
+            {t('Book')} {name.split(' ')[0]}{selectedService ? ` · ${selectedService.name}` : ''}
+          </Text>
         </Pressable>
       </ScrollView>
     </SafeAreaView>

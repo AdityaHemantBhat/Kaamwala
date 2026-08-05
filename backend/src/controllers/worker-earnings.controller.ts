@@ -3,6 +3,7 @@ import { prisma } from '../config/prisma';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { sendResponse, sendError } from '../utils/response';
 import { emitToAdmins } from '../services/socket.service';
+import { guardAmount } from '../utils/money';
 
 export const workerEarningsController = {
   getEarnings: async (req: AuthRequest, res: Response) => {
@@ -78,8 +79,10 @@ export const workerEarningsController = {
   withdraw: async (req: AuthRequest, res: Response) => {
     try {
       const { amount, method = 'UPI', upiId, bankAccount, ifscCode, bankName, accountHolderName } = req.body;
-      const withdrawalAmount = Math.round(Number(amount));
-      if (!withdrawalAmount || withdrawalAmount < 100) return sendError(res, 400, 'Minimum withdrawal is ₹100');
+      const guarded = guardAmount(amount);
+      if (guarded === null) return sendError(res, 400, 'Invalid amount');
+      const withdrawalAmount = Math.round(guarded);
+      if (withdrawalAmount < 100) return sendError(res, 400, 'Minimum withdrawal is ₹100');
 
       let description = '';
       if (method === 'UPI') {

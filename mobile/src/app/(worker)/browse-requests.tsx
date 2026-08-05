@@ -10,6 +10,7 @@ import { socketService } from '../../api/socket';
 import { useRouter } from 'expo-router';
 import { useT } from '../../utils/i18n';
 import { Modal, TextInput } from 'react-native';
+import * as Location from 'expo-location';
 
 const CATEGORIES = [
   'PLUMBER', 'ELECTRICIAN', 'CARPENTER', 'MAID', 'DRIVER', 'PAINTER',
@@ -56,6 +57,17 @@ export default function BrowseRequests() {
     try {
       const params: any = {};
       if (filterCat) params.category = filterCat;
+      // Best-effort: send the worker's freshest known location so the backend
+      // can filter requests to the worker's service radius. getLastKnownPosition
+      // is silent (no permission prompt); if it fails the backend falls back to
+      // the worker's stored profile coordinates.
+      try {
+        const loc = await Location.getLastKnownPositionAsync();
+        if (loc?.coords) {
+          params.lat = loc.coords.latitude;
+          params.lng = loc.coords.longitude;
+        }
+      } catch {}
       const res = await apiClient.get('/requests/browse', { params });
       setRequests(res.data?.data || []);
     } catch (e) {

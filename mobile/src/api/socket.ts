@@ -114,9 +114,14 @@ class SocketService {
     }
   }
 
-  emitLocationUpdate(bookingId: string, lat: number, lng: number) {
+  emitLocationUpdate(bookingId: string, lat: number, lng: number, accuracy?: number | null) {
     if (this.socket) {
-      this.socket.emit('worker:location_update', { bookingId, lat, lng });
+      this.socket.emit('worker:location_update', {
+        bookingId,
+        lat,
+        lng,
+        ...(typeof accuracy === 'number' ? { accuracy } : {}),
+      });
     }
   }
 

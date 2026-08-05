@@ -278,26 +278,62 @@ export default function WorkerBookings() {
 
                 {/* Actions */}
                 <View style={styles.actionsRow}>
-                  {/* Primary action */}
-                  {action && (
-                    <Pressable
-                      style={[styles.actionBtn, { backgroundColor: action.color }]}
-                      onPress={() => {
-                        if ((action as any).needsOtp) {
-                          setOtpValue('');
-                          setOtpModal({ visible: true, bookingId: booking.id });
-                        } else {
-                          updateStatus(booking.id, action.nextStatus);
-                        }
-                      }}
-                      disabled={updatingId === booking.id}
-                    >
-                      {updatingId === booking.id ? (
-                        <ActivityIndicator size="small" color="#FFF" />
-                      ) : (
-                        <Text style={styles.actionBtnText}>{action.label}</Text>
-                      )}
-                    </Pressable>
+                  {booking.status === 'PENDING' ? (
+                    /* Pending bookings show Accept + Reject side-by-side with
+                       equal spacing — the worker decides at a glance. */
+                    <View style={styles.pendingActions}>
+                      <Pressable
+                        style={[styles.pendingActionBtn, styles.acceptBtn]}
+                        onPress={() => updateStatus(booking.id, 'ACCEPTED')}
+                        disabled={updatingId === booking.id}
+                        accessibilityRole="button"
+                        accessibilityLabel={t('Accept booking')}
+                      >
+                        {updatingId === booking.id ? (
+                          <ActivityIndicator size="small" color="#FFF" />
+                        ) : (
+                          <>
+                            <MaterialCommunityIcons name="check" size={18} color="#FFF" />
+                            <Text style={styles.actionBtnText}>{t('Accept')}</Text>
+                          </>
+                        )}
+                      </Pressable>
+                      <Pressable
+                        style={[styles.pendingActionBtn, styles.rejectBtn]}
+                        onPress={() => {
+                          setCancelReasonCategory('OTHER');
+                          setWorkerCancelReason('');
+                          setCancelModal({ visible: true, booking });
+                        }}
+                        accessibilityRole="button"
+                        accessibilityLabel={t('Reject booking')}
+                      >
+                        <MaterialCommunityIcons name="close" size={18} color="#8B1A1A" />
+                        <Text style={styles.rejectBtnText}>{t('Reject')}</Text>
+                      </Pressable>
+                    </View>
+                  ) : (
+                    /* Primary action — all non-pending statuses keep the full-width CTA */
+                    action && (
+                      <Pressable
+                        style={[styles.actionBtn, { backgroundColor: action.color }]}
+                        onPress={() => {
+                          if ((action as any).needsOtp) {
+                            setOtpValue('');
+                            setOtpModal({ visible: true, bookingId: booking.id });
+                          } else {
+                            updateStatus(booking.id, action.nextStatus);
+                          }
+                        }}
+                        disabled={updatingId === booking.id}
+                      >
+                        {updatingId === booking.id ? (
+                          <ActivityIndicator size="small" color="#FFF" />
+                        ) : (
+                          <Text style={styles.actionBtnText}>{action.label}</Text>
+                        )}
+                      </Pressable>
+                    )
                   )}
 
                   {/* Secondary actions */}
@@ -344,8 +380,8 @@ export default function WorkerBookings() {
                       </Pressable>
                     )}
 
-                    {/* Cancel — PENDING / ACCEPTED / ON_THE_WAY */}
-                    {(booking.status === 'PENDING' || booking.status === 'ACCEPTED' || booking.status === 'ON_THE_WAY') && (
+                    {/* Cancel — ACCEPTED / ON_THE_WAY (PENDING uses the Reject button above) */}
+                    {(booking.status === 'ACCEPTED' || booking.status === 'ON_THE_WAY') && (
                       <Pressable
                         style={[styles.iconBtn, { backgroundColor: '#8B1A1A' }]}
                         onPress={() => {
@@ -833,6 +869,20 @@ const styles = StyleSheet.create({
     borderRadius: 20, paddingVertical: 12, paddingHorizontal: 16, gap: 6,
   },
   actionBtnText: { fontSize: 14, fontFamily: 'Inter_600SemiBold', color: '#FFFFFF' },
+  // Accept + Reject on the same row, equal width.
+  pendingActions: { flexDirection: 'row', gap: 10 },
+  pendingActionBtn: {
+    flex: 1,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    borderRadius: 20, paddingVertical: 12, paddingHorizontal: 16, gap: 6,
+  },
+  acceptBtn: { backgroundColor: '#4CAF50' },
+  rejectBtn: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#8B1A1A',
+  },
+  rejectBtnText: { fontSize: 14, fontFamily: 'Inter_600SemiBold', color: '#8B1A1A' },
   secondaryRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8 },
   secondaryBtn: {
     flex: 1, minWidth: 140, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',

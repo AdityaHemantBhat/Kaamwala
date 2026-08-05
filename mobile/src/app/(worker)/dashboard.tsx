@@ -63,7 +63,12 @@ export default function WorkerDashboard() {
   useEffect(() => { fetchUnread(); }, []);
 
   useEffect(() => {
-    const interval = setInterval(fetchUnread, 15000);
+    // Socket events keep the badge live in realtime; this interval is only a
+    // fallback when the socket is down — skipping it while connected avoids a
+    // pointless network call every 15 seconds.
+    const interval = setInterval(() => {
+      if (!socketService.isConnected()) fetchUnread();
+    }, 15000);
     return () => clearInterval(interval);
   }, []);
 

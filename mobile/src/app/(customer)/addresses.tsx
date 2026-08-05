@@ -29,6 +29,7 @@ export default function AddressesScreen() {
   const [newLandmark, setNewLandmark] = useState('');
   const [selectedState, setSelectedState] = useState<{ name: string; isoCode: string } | null>(null);
   const [selectedCity, setSelectedCity] = useState<{ name: string } | null>(null);
+  const [pincode, setPincode] = useState('');
   const [latitude, setLatitude] = useState<number | null>(null);
   const [longitude, setLongitude] = useState<number | null>(null);
   const [isSelectingState, setIsSelectingState] = useState(false);
@@ -87,6 +88,10 @@ export default function AddressesScreen() {
           setSelectedCity({ name: g.city || g.subregion || '' });
         }
 
+        // Pincode comes straight from reverse geocoding when available — the
+        // worker needs it to navigate and to confirm the service area.
+        if (g.postalCode) setPincode(g.postalCode);
+
         setLatitude(loc.coords.latitude);
         setLongitude(loc.coords.longitude);
 
@@ -126,7 +131,8 @@ export default function AddressesScreen() {
       const res = await apiClient.post('/addresses', {
         label: newLabel, line1: newLine1, line2: newLine2 || undefined,
         landmark: newLandmark || undefined,
-        city: selectedCity.name, state: selectedState.name, pincode: '',
+        city: selectedCity.name, state: selectedState.name,
+        pincode: pincode.trim(),
         latitude,
         longitude,
         isDefault: addresses.length === 0,
@@ -142,7 +148,7 @@ export default function AddressesScreen() {
   const resetModal = () => {
     setModalVisible(false);
     setNewLine1(''); setNewLine2(''); setNewLandmark(''); setSelectedState(null); setSelectedCity(null);
-    setLatitude(null); setLongitude(null);
+    setPincode(''); setLatitude(null); setLongitude(null);
   };
 
   const openStateSelector = () => { setSearchQuery(''); setIsSelectingState(true); };
@@ -333,13 +339,26 @@ export default function AddressesScreen() {
                     </Pressable>
 
                     <Text style={{ fontFamily: 'Inter_500Medium', fontSize: 12, color: '#6B6B6B', marginBottom: 6 }}>{t('City')} *</Text>
-                    <Pressable onPress={openCitySelector} disabled={!selectedState} style={{ marginBottom: 20 }}>
+                    <Pressable onPress={openCitySelector} disabled={!selectedState} style={{ marginBottom: 14 }}>
                       <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#F5F5F5', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 14, opacity: selectedState ? 1 : 0.5 }}>
                         <MaterialCommunityIcons name="domain" size={20} color="#9E9E9E" />
                         <Text style={{ fontFamily: 'Inter_400Regular', fontSize: 14, color: selectedCity ? '#0D0D0D' : '#9E9E9E', marginLeft: 10, flex: 1 }}>{selectedCity?.name || (selectedState ? t('Select City') : t('Select State First'))}</Text>
                         <MaterialCommunityIcons name="chevron-down" size={20} color="#9E9E9E" />
                       </View>
                     </Pressable>
+
+                    <Text style={{ fontFamily: 'Inter_500Medium', fontSize: 12, color: '#6B6B6B', marginBottom: 6 }}>{t('Pincode')}</Text>
+                    <View style={{ backgroundColor: '#F5F5F5', borderRadius: 12, paddingHorizontal: 14, marginBottom: 20 }}>
+                      <TextInput
+                        style={{ paddingVertical: 14, fontFamily: 'Inter_400Regular', fontSize: 14, color: '#0D0D0D' }}
+                        placeholder={t('e.g. 403001')}
+                        placeholderTextColor="#9E9E9E"
+                        value={pincode}
+                        onChangeText={setPincode}
+                        keyboardType="number-pad"
+                        maxLength={10}
+                      />
+                    </View>
 
                     <View style={{ flexDirection: 'row', gap: 12 }}>
                       <Pressable onPress={handleAddAddress} disabled={saving || !newLine1 || !selectedState || !selectedCity}

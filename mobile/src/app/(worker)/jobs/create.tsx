@@ -61,7 +61,7 @@ export default function CreateJob() {
       if (estimatedHours) payload.estimatedHours = Number(estimatedHours);
       if (skills.trim()) payload.skills = skills.split(',').map(s => s.trim()).filter(Boolean);
 
-      await apiClient.post('/workers/jobs', payload);
+      await apiClient.post('/jobs', payload);
       Alert.alert(t('Job Posted!'), t('Your job listing is now live.'), [
         { text: t('OK'), onPress: () => router.back() }
       ]);

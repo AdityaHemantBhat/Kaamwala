@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, ScrollView, Pressable, RefreshControl, StyleSheet, ActivityIndicator } from 'react-native';
 import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 import { SkeletonCustomerHome } from '../../components/ui/Skeleton';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -13,8 +14,14 @@ import { useT } from '../../utils/i18n';
 import { FeaturedBadge, isFeaturedActive } from '../../components/ui/FeaturedBadge';
 import { RebookSheet } from '../../components/ui/RebookSheet';
 import { BroadcastMarquee } from '../../components/ui/BroadcastMarquee';
+import { formatMoneyWithSymbol } from '../../utils/money';
+import { socketService } from '../../api/socket';
 
 const TIER_COLORS: Record<string, string> = { BRONZE: '#8B6B3D', SILVER: '#8A8A8A', GOLD: '#D4A017', PLATINUM: '#E5E4E2' };
+
+// Premium gold treatment for the Go Plus upsell card.
+const GOLD_GRADIENT: readonly [string, string, string] = ['#F9E08A', '#E3B93B', '#B8871B']; // metallic gold border
+const CARD_BASE: readonly [string, string] = ['#1A1610', '#0D0D0D']; // warm black, same base as wallet
 
 export default function CustomerHome() {
   const t = useT();
@@ -39,7 +46,12 @@ export default function CustomerHome() {
   useEffect(() => { fetchUnread(); }, []);
 
   useEffect(() => {
-    const interval = setInterval(fetchUnread, 15000);
+    // Socket events keep the badge live in realtime; this interval is only a
+    // fallback when the socket is down — skipping it while connected avoids a
+    // pointless network call every 15 seconds.
+    const interval = setInterval(() => {
+      if (!socketService.isConnected()) fetchUnread();
+    }, 15000);
     return () => clearInterval(interval);
   }, []);
 
@@ -154,7 +166,7 @@ export default function CustomerHome() {
               <Text style={styles.walletLabel}>{t('Wallet')}</Text>
               <Text style={styles.walletLabel}>{data?.loyaltyPoints || 0} {t('pts')}</Text>
             </View>
-            <Text style={styles.walletBalance}>₹{data?.walletBalance || 0}</Text>
+            <Text style={styles.walletBalance}>{formatMoneyWithSymbol(data?.walletBalance)}</Text>
           </Pressable>
         </View>
 
@@ -162,7 +174,7 @@ export default function CustomerHome() {
         <View style={[styles.sectionOuter, { flexDirection: 'row', gap: 8 }]}>
           {[
             { v: data?.completedBookings || 0, l: t('Done') },
-            { v: `₹${data?.totalSaved || 0}`, l: t('Saved') },
+            { v: formatMoneyWithSymbol(data?.totalSaved), l: t('Saved') },
             { v: data?.loyaltyPoints || 0, l: t('Points') },
           ].map(s => (
             <View key={s.l} style={styles.statCard}>
@@ -238,13 +250,17 @@ export default function CustomerHome() {
         {/* ── Subscription upsell ── */}
         {data?.subscription?.plan === 'BASIC' && (
           <View style={styles.sectionOuter}>
-            <Pressable style={styles.subscriptionCard} onPress={() => router.push('/(customer)/subscription')}>
-              <MaterialCommunityIcons name="crown" size={22} color="#FF5C00" />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.subscriptionTitle}>{t('Go Plus, save 10%')}</Text>
-                <Text style={styles.subscriptionSub}>{t('Just ₹199/month')}</Text>
-              </View>
-              <MaterialCommunityIcons name="chevron-right" size={18} color="#FF5C00" />
+            <Pressable onPress={() => router.push('/(customer)/subscription')} accessibilityRole="button" accessibilityLabel={t('Go Plus, save 10%')}>
+              <LinearGradient colors={GOLD_GRADIENT} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.subscriptionBorder}>
+                <LinearGradient colors={CARD_BASE} start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }} style={styles.subscriptionCard}>
+                  <MaterialCommunityIcons name="crown" size={22} color="#F5D06B" />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.subscriptionTitle}>{t('Go Plus, save 10%')}</Text>
+                    <Text style={styles.subscriptionSub}>{t('Just ₹199/month')}</Text>
+                  </View>
+                  <MaterialCommunityIcons name="chevron-right" size={18} color="#F5D06B" />
+                </LinearGradient>
+              </LinearGradient>
             </Pressable>
           </View>
         )}
@@ -395,9 +411,10 @@ const styles = StyleSheet.create({
   categoryLabel: { fontFamily: 'Inter_400Regular', fontSize: 12, color: '#0D0D0D' },
 
   // Subscription
-  subscriptionCard: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#FFF0E8', borderRadius: 12, padding: 14 },
-  subscriptionTitle: { fontFamily: 'Inter_600SemiBold', fontSize: 13, color: '#0D0D0D' },
-  subscriptionSub: { fontFamily: 'Inter_400Regular', fontSize: 11, color: '#6B6B6B' },
+  subscriptionBorder: { borderRadius: 16, padding: 1.5 },
+  subscriptionCard: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 14, padding: 16 },
+  subscriptionTitle: { fontFamily: 'Inter_600SemiBold', fontSize: 13, color: '#F5D06B' },
+  subscriptionSub: { fontFamily: 'Inter_400Regular', fontSize: 11, color: '#D4AF37', opacity: 0.85 },
 
   // Suggestions
   suggestionCard: { width: 180, padding: 16, marginRight: 12, backgroundColor: '#FFFFFF', borderRadius: 16, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, borderWidth: 1, borderColor: '#F0F0F0' },

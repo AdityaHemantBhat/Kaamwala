@@ -44,7 +44,7 @@ export default function EditJob() {
   useEffect(() => {
     async function loadJob() {
       try {
-        const res = await apiClient.get(`/workers/jobs/${id}`);
+        const res = await apiClient.get(`/jobs/${id}`);
         const job = res.data?.data;
         if (job) {
           setTitle(job.title || '');
@@ -97,7 +97,7 @@ export default function EditJob() {
       if (estimatedHours) payload.estimatedHours = Number(estimatedHours);
       if (skills.trim()) payload.skills = skills.split(',').map(s => s.trim()).filter(Boolean);
 
-      await apiClient.put(`/workers/jobs/${id}`, payload);
+      await apiClient.put(`/jobs/${id}`, payload);
       Alert.alert(t('Saved!'), t('Job listing updated.'), [
         { text: t('OK'), onPress: () => router.back() }
       ]);
@@ -121,7 +121,7 @@ export default function EditJob() {
           onPress: async () => {
             setDeleting(true);
             try {
-              await apiClient.delete(`/workers/jobs/${id}`);
+              await apiClient.delete(`/jobs/${id}`);
               router.back();
             } catch (e: any) {
               Alert.alert(t('Error'), t('Failed to delete'));

@@ -344,11 +344,13 @@ export const registerSocketListeners = () => {
       }
     });
 
-    socket.on('worker:location_update', async ({ bookingId, lat, lng }) => {
+    socket.on('worker:location_update', async ({ bookingId, lat, lng, accuracy }) => {
       if (role !== 'WORKER') return;
       // Reject malformed GPS so bogus fixes never reach the map or the DB.
       if (typeof lat !== 'number' || typeof lng !== 'number' || !isFinite(lat) || !isFinite(lng)) return;
       if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return;
+      // Capture the measured fix accuracy when the client provides it (meters).
+      const acc = typeof accuracy === 'number' && isFinite(accuracy) && accuracy > 0 ? Math.round(accuracy) : null;
 
       let eta: number | null = null;
       try {
@@ -396,7 +398,13 @@ export const registerSocketListeners = () => {
         const workerProfile = await prisma.workerProfile.findUnique({ where: { userId } });
         if (workerProfile) {
           await prisma.workerLocation.create({
-            data: { workerProfileId: workerProfile.id, bookingId, latitude: lat, longitude: lng },
+            data: {
+              workerProfileId: workerProfile.id,
+              bookingId,
+              latitude: lat,
+              longitude: lng,
+              ...(acc !== null ? { accuracy: acc } : {}),
+            },
           });
         }
       } catch (e) { /* silent — a single failed update must never break tracking */ }

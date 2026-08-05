@@ -1,6 +1,8 @@
 import * as TaskManager from 'expo-task-manager';
 import * as Location from 'expo-location';
 import { socketService } from '../api/socket';
+import { shouldEmitLocation } from './locationThrottle';
+import { cacheLocation } from './locationCache';
 
 /**
  * Shared worker live-location producer.
@@ -30,7 +32,7 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
 
   const coords = locations[locations.length - 1]?.coords;
   if (!coords) return;
-  const { latitude, longitude } = coords as { latitude: number; longitude: number };
+  const { latitude, longitude, accuracy } = coords as { latitude: number; longitude: number; accuracy?: number | null };
 
   // Reject malformed / placeholder fixes — never (0,0) or beyond the globe.
   if (typeof latitude !== 'number' || typeof longitude !== 'number') return;
@@ -38,9 +40,17 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
   if (Math.abs(latitude) > 90 || Math.abs(longitude) > 180) return;
   if (Math.abs(latitude) < 1 && Math.abs(longitude) < 1) return;
 
+  // Cache the location for quick retrieval on repeat views
+  cacheLocation(activeBookingId, latitude, longitude);
+
+  // Throttle emissions to reduce socket load (only emit every 2 seconds)
+  if (!shouldEmitLocation()) {
+    return; // Skip this update, next one will come in ~2 seconds
+  }
+
   // Ensure the socket is up (it may have dropped while backgrounded), then push.
   socketService.connect();
-  socketService.emitLocationUpdate(activeBookingId, latitude, longitude);
+  socketService.emitLocationUpdate(activeBookingId, latitude, longitude, accuracy);
 });
 
 /** Whether background location tracking is supported in this runtime. */

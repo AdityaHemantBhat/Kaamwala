@@ -3,6 +3,7 @@ import { authService } from '../services/auth.service';
 import { sendResponse, sendError } from '../utils/response';
 import { prisma } from '../config/prisma';
 import { pricingService } from '../services/pricing.service';
+import { getClientIp, getUserAgent } from '../utils/audit';
 
 export const authController = {
   sendOtp: async (req: Request, res: Response) => {
@@ -10,7 +11,7 @@ export const authController = {
       // `appHash` is the app's 11-char SMS Retriever hash (Android). When present
       // and valid, authService frames the SMS so the Retriever API can deliver it.
       const { phone, appHash } = req.body;
-      const result = await authService.sendOtp(phone, appHash);
+      const result = await authService.sendOtp(phone, appHash, { ip: getClientIp(req) });
       sendResponse(res, 200, result);
     } catch (error: any) {
       sendError(res, 400, error.message);
@@ -19,8 +20,14 @@ export const authController = {
 
   verifyOtp: async (req: Request, res: Response) => {
     try {
-      const { phone, otp, role, fcmToken, deviceInfo } = req.body;
-      const data = await authService.verifyOtp(phone, otp, role, { fcmToken, deviceInfo });
+      const { phone, otp, role, fcmToken, deviceInfo, preferredLang } = req.body;
+      const data = await authService.verifyOtp(phone, otp, role, {
+        fcmToken,
+        deviceInfo,
+        preferredLang,
+        ip: getClientIp(req),
+        userAgent: getUserAgent(req),
+      });
       sendResponse(res, 200, data);
     } catch (error: any) {
       sendError(res, 401, error.message);
@@ -30,7 +37,10 @@ export const authController = {
   refresh: async (req: Request, res: Response) => {
     try {
       const { refreshToken } = req.body;
-      const tokens = await authService.refreshTokens(refreshToken);
+      const tokens = await authService.refreshTokens(refreshToken, {
+        ip: getClientIp(req),
+        userAgent: getUserAgent(req),
+      });
       sendResponse(res, 200, tokens);
     } catch (error: any) {
       sendError(res, 401, error.message);
@@ -52,12 +62,16 @@ export const authController = {
       // `role` is intentionally NOT accepted here — it would let any user
       // self-promote to ADMIN. Role changes happen only server-side via the
       // verified-OTP login flow (auth.service.verifyOtp).
-      const { name, photoUrl, avatarUrl: incomingAvatar, category, city, state, experienceYears, hourlyRate, upiId, bankAccountNumber, bankIfsc, bio, weeklyEarningsGoal } = req.body;
+      const { name, photoUrl, avatarUrl: incomingAvatar, preferredLang, category, city, state, experienceYears, hourlyRate, upiId, bankAccountNumber, bankIfsc, bio, weeklyEarningsGoal, skills, languages, subCategories, workPhotos, pincode, introVideoUrl } = req.body;
 
       const userData: any = {};
       if (name !== undefined) userData.name = name;
       if (photoUrl !== undefined) userData.avatarUrl = photoUrl;
       if (incomingAvatar !== undefined) userData.avatarUrl = incomingAvatar;
+      // Keep the account language in sync whenever the user changes it later.
+      if (preferredLang !== undefined && typeof preferredLang === 'string' && preferredLang.length <= 10) {
+        userData.preferredLang = preferredLang;
+      }
 
       const user = await prisma.user.update({
         where: { id: req.user.userId },
@@ -77,6 +91,34 @@ export const authController = {
         if (bankIfsc !== undefined) workerData.bankIfsc = bankIfsc;
         if (bio !== undefined) workerData.bio = bio;
         if (weeklyEarningsGoal !== undefined) workerData.weeklyEarningsGoal = Number(weeklyEarningsGoal);
+        // Designed-but-dead fields — now writable through the same profile
+        // endpoint so the mobile UI can manage them (sanitized before persist).
+        if (skills !== undefined) {
+          workerData.skills = Array.isArray(skills)
+            ? skills.filter((s: any) => typeof s === 'string' && s.trim()).map((s: any) => s.trim()).slice(0, 20)
+            : [];
+        }
+        if (languages !== undefined) {
+          const langList = Array.isArray(languages)
+            ? languages.filter((l: any) => typeof l === 'string' && l.trim()).map((l: any) => l.trim()).slice(0, 5)
+            : [];
+          workerData.languages = langList.length ? langList : ['en'];
+        }
+        if (subCategories !== undefined && Array.isArray(subCategories)) {
+          workerData.subCategories = subCategories.filter((s: any) => typeof s === 'string').slice(0, 10);
+        }
+        if (workPhotos !== undefined && Array.isArray(workPhotos)) {
+          workerData.workPhotos = workPhotos
+            .filter((s: any) => typeof s === 'string' && s.startsWith('https://'))
+            .slice(0, 6);
+        }
+        if (pincode !== undefined) {
+          const pc = pincode ? String(pincode).trim().slice(0, 10) : '';
+          workerData.pincode = pc || null;
+        }
+        if (introVideoUrl !== undefined) {
+          workerData.introVideoUrl = introVideoUrl ? String(introVideoUrl).slice(0, 500) : null;
+        }
 
         // Platform minimum-floor validation for worker rates — never trust frontend.
         // The floor is market-derived per the worker's city; see pricingService.getMinimumFloor.

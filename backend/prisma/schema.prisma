@@ -182,7 +182,7 @@ model User {
   bannedBy         String?
   banExpiresAt     DateTime?
   fcmToken         String?
-  preferredLang    String    @default("hi")
+  preferredLang    String    @default("en")
   referralCode     String?   @unique
   lastActiveAt     DateTime?
   loginCount       Int       @default(0)
@@ -356,7 +356,7 @@ model WorkerProfile {
   pincode             String?
   serviceRadiusKm     Int                @default(10)
   workPhotos          String[]           @default([])
-  languages           String[]           @default(["hi"])
+  languages           String[]           @default(["en"])
   lastLocationAt      DateTime?
   // Lead quota — FREE workers get a monthly cap on express-interest leads;
   // PRO/ELITE are unlimited. Reset lazily at the start of each month.

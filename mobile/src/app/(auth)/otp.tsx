@@ -4,7 +4,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { authApi } from '../../api/auth.api';
 import { useAuthStore } from '../../store/auth.store';
 import { useToast } from '../../components/ui/ToastProvider';
-import { useT } from '../../utils/i18n';
+import { useT, getCurrentLang } from '../../utils/i18n';
 import { getDeviceInfo } from '../../utils/deviceInfo';
 import { getExpoPushToken } from '../../utils/notifications';
 import { subscribeToOtp, getSmsRetrieverHash } from '../../utils/otpAutofill';
@@ -84,7 +84,9 @@ export default function OtpScreen() {
       setLoading(true);
       setErrorState(false);
       const meta = await getLoginMeta();
-      const res = await authApi.verifyOtp({ phone, otp: finalCode, role, ...meta });
+      // Persist the user's selected app language on the account so it survives
+      // reinstalls and is available server-side (not just in AsyncStorage).
+      const res = await authApi.verifyOtp({ phone, otp: finalCode, role, preferredLang: getCurrentLang(), ...meta });
       await setAuth(res.user, res.accessToken, res.refreshToken);
       setShowTransition(true);
       // Let the transition play before navigating

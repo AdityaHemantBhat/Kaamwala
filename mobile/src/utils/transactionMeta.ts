@@ -70,9 +70,10 @@ export function getTransactionMeta(type: string): TransactionMeta {
 
 /** Amounts are stored as signed INR floats; render as "+₹50" / "−₹120". */
 export function formatSignedINR(amount: number): string {
-  const n = Math.round(Math.abs(amount));
-  if (amount > 0) return `+₹${n.toLocaleString('en-IN')}`;
-  if (amount < 0) return `−₹${n.toLocaleString('en-IN')}`;
+  if (!Number.isFinite(amount)) return '₹0';
+  const n = Math.round(Math.abs(amount)).toLocaleString('en-IN');
+  if (amount > 0) return `+₹${n}`;
+  if (amount < 0) return `−₹${n}`;
   return '₹0';
 }
 

@@ -78,6 +78,12 @@ export const supportController = {
         if (ticket.status === 'open') {
           await prisma.supportTicket.update({ where: { id: ticket.id }, data: { status: 'in_progress' } });
         }
+        // Keep the ticket's adminReply snapshot in sync with the latest reply so
+        // list views show the last agent message without a join.
+        await prisma.supportTicket.update({
+          where: { id: ticket.id },
+          data: { adminReply: parsed.message, updatedAt: new Date() },
+        });
         try { emitToUser(ticket.userId, 'ticket_reply', { ticketId: ticket.id, message: parsed.message }); } catch {}
         await notificationService.sendPushNotification(
           ticket.userId, 'Support Reply',

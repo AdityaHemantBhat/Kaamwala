@@ -168,6 +168,35 @@ export function setupNotificationListeners() {
         setTimeout(() => router.push(route as never), 0);
       }
     });
+
+    // Cold-start deep link: the app was launched by tapping a notification. The
+    // auth store may not be hydrated yet (we need the role to resolve the route),
+    // so retry until it is, bounded so a stuck launch never spins forever.
+    NotificationsModule.getLastNotificationResponseAsync()
+      .then((response) => {
+        if (!response?.notification) return;
+        const content = response.notification.request.content;
+        const data = extractData(content.data);
+        const payload = { type: data.type || 'general', title: content.title || '', body: content.body || '', data };
+
+        const tryNavigate = () => {
+          const role = useAuthStore.getState().user?.role;
+          if (!role) return false;
+          NotificationsModule.setBadgeCountAsync(0).catch(() => {});
+          const route = resolveNotificationRoute(payload, role as any);
+          if (route) setTimeout(() => router.push(route as never), 0);
+          return true;
+        };
+
+        if (!tryNavigate()) {
+          let attempts = 0;
+          const iv = setInterval(() => {
+            attempts++;
+            if (tryNavigate() || attempts > 20) clearInterval(iv);
+          }, 250);
+        }
+      })
+      .catch(() => {});
   };
 
   setup();

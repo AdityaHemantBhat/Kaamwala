@@ -323,13 +323,15 @@ export const bookingService = {
           const existing = await prisma.maintenancePlan.findFirst({
             where: { customerId: booking.customerId, serviceCategory: booking.serviceCategory },
           });
+          let planId: string | null = null;
           if (existing) {
             await prisma.maintenancePlan.update({
               where: { id: existing.id },
               data: { workerId: booking.workerId, nextServiceAt, isActive: true },
             });
+            planId = existing.id;
           } else {
-            await prisma.maintenancePlan.create({
+            const plan = await prisma.maintenancePlan.create({
               data: {
                 customerId: booking.customerId,
                 workerId: booking.workerId,
@@ -339,6 +341,12 @@ export const bookingService = {
                 nextServiceAt,
               },
             });
+            planId = plan.id;
+          }
+          // Link the completed booking to the maintenance plan it spawned so the
+          // FK is never silently null.
+          if (planId) {
+            await prisma.booking.update({ where: { id: bookingId }, data: { maintenancePlanId: planId } });
           }
         }
       }

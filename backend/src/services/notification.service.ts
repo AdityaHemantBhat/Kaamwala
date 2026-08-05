@@ -71,6 +71,66 @@ function coalesceKeyFor(type: string, data?: Record<string, any>): string | null
   return null;
 }
 
+/**
+ * Role-aware deep link for a notification — the same routes the mobile app
+ * navigates to (see mobile/src/utils/notificationMeta.ts). Persisted on the
+ * Notification row so the link survives independently of the client resolver
+ * and is queryable for analytics / support.
+ */
+export function buildDeepLink(role: string | null | undefined, type: string, data?: Record<string, any>): string | null {
+  const d = data && typeof data === 'object' ? data : {};
+  const bookingId = d.bookingId;
+  const requestId = d.requestId;
+  const ticketId = d.ticketId;
+  const isWorker = role === 'WORKER';
+  const bookings = isWorker ? '/(worker)/bookings' : '/(customer)/bookings';
+
+  switch (type) {
+    case 'chat_message':
+      return bookingId && isWorker ? `/(worker)/chat?bookingId=${bookingId}` : bookings;
+    case 'urgent_request':
+      return '/(worker)/browse-requests';
+    case 'urgent_expired':
+      return !isWorker ? '/(customer)/urgent' : '/(worker)/browse-requests';
+    case 'request_matched':
+    case 'request_accepted':
+    case 'request_counter':
+      return isWorker ? '/(worker)/browse-requests' : '/(customer)/home';
+    case 'worker_interest':
+    case 'worker_quote':
+      return !isWorker ? '/(customer)/bookings' : '/(customer)/home';
+    case 'verification':
+      return isWorker ? '/(worker)/verification' : '/(customer)/home';
+    case 'subscription':
+      return isWorker ? '/(worker)/subscription' : '/(customer)/subscription';
+    case 'withdrawal':
+    case 'wallet':
+    case 'wallet_credited':
+    case 'payment_received':
+    case 'payment_success':
+    case 'payment_failed':
+    case 'refund':
+    case 'cancellation_fee':
+      return isWorker ? '/(worker)/earnings' : '/(customer)/payments';
+    case 'support_reply':
+      return isWorker ? (ticketId ? `/(worker)/support/${ticketId}` : '/(worker)/support') : '/(customer)/notifications';
+    case 'scope_change':
+    case 'negotiation':
+    case 'booking_update':
+    case 'booking_confirmed':
+    case 'new_request':
+    case 'new_booking':
+    case 'cancel_request':
+      return bookings;
+    case 'referral_bonus':
+      return !isWorker ? '/(customer)/referrals' : '/(customer)/home';
+    default:
+      if (bookingId) return bookings;
+      if (requestId) return isWorker ? '/(worker)/browse-requests' : '/(customer)/bookings';
+      return isWorker ? '/(worker)/notifications' : '/(customer)/notifications';
+  }
+}
+
 async function emitNewNotification(userId: string, notification: any) {
   try {
     // Circular-safe: socket.service imports notification.service (chat push).
@@ -94,12 +154,14 @@ export const notificationService = {
     const dataObj = data !== undefined ? (typeof data === 'object' ? data : { value: data }) : undefined;
 
     try {
-      // User lookup (token) + notification write run concurrently — hot path
-      // costs ~1 round-trip, not 2.
-      const userPromise = prisma.user.findUnique({
+      // Resolve the recipient first (token + role) so the persisted row can
+      // carry a correct role-aware deep link.
+      const user = await prisma.user.findUnique({
         where: { id: userId },
-        select: { id: true, fcmToken: true },
+        select: { id: true, fcmToken: true, role: true },
       });
+
+      const deepLink = buildDeepLink(user?.role as any, type, dataObj);
 
       const existing = meta.coalesceMs ? await this.findCoalescable(userId, type, dataObj, meta.coalesceMs) : null;
       let notification;
@@ -113,6 +175,7 @@ export const notificationService = {
               ? `You have ${count} new messages`
               : body,
             data: { ...(dataObj || {}), count },
+            ...(deepLink ? { deepLink } : {}),
           },
         });
       } else {
@@ -124,6 +187,7 @@ export const notificationService = {
             type,
             isSilent: !!meta.silent,
             ...(dataObj !== undefined ? { data: dataObj } : {}),
+            ...(deepLink ? { deepLink } : {}),
           },
         });
       }
@@ -131,7 +195,6 @@ export const notificationService = {
       // Realtime in-app delivery (full row so the client can render + route).
       await emitNewNotification(userId, notification);
 
-      const user = await userPromise;
       if (!meta.silent && user?.fcmToken) {
         const result = await sendPushToToken(user.fcmToken, {
           title,

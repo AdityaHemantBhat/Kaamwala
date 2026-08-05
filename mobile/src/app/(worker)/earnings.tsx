@@ -9,6 +9,7 @@ import { apiClient } from '../../api/client';
 import { useT } from '../../utils/i18n';
 import { getTransactionMeta, formatSignedINR, groupByDay, TransactionRow } from '../../utils/transactionMeta';
 import { SkeletonWorkerEarnings } from '../../components/ui/Skeleton';
+import { formatMoneyWithSymbol } from '../../utils/money';
 
 export default function WorkerEarnings() {
   const router = useRouter();
@@ -160,7 +161,7 @@ export default function WorkerEarnings() {
         {/* Wallet Card */}
         <View style={styles.walletCard}>
           <Text style={styles.walletLabel}>{t('Available Balance')}</Text>
-          <Text style={styles.walletAmount}>₹{data?.walletBalance || 0}</Text>
+          <Text style={styles.walletAmount}>{formatMoneyWithSymbol(data?.walletBalance)}</Text>
           <View style={{ flexDirection: 'row', gap: 12, marginTop: 8 }}>
             <Pressable
               onPress={() => setShowWithdraw(true)}
@@ -185,10 +186,10 @@ export default function WorkerEarnings() {
         {/* Earnings Stats */}
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
           {[
-            { icon: 'currency-inr', value: `₹${data?.todayEarnings || 0}`, label: t('Today') },
-            { icon: 'currency-inr', value: `₹${data?.weekEarnings || 0}`, label: t('This Week') },
-            { icon: 'currency-inr', value: `₹${data?.monthEarnings || 0}`, label: t('This Month') },
-            { icon: 'wallet', value: `₹${data?.totalEarned || 0}`, label: t('All Time') },
+            { icon: 'currency-inr', value: formatMoneyWithSymbol(data?.todayEarnings), label: t('Today') },
+            { icon: 'currency-inr', value: formatMoneyWithSymbol(data?.weekEarnings), label: t('This Week') },
+            { icon: 'currency-inr', value: formatMoneyWithSymbol(data?.monthEarnings), label: t('This Month') },
+            { icon: 'wallet', value: formatMoneyWithSymbol(data?.totalEarned), label: t('All Time') },
           ].map((s, i) => (
             <Animated.View key={s.label} entering={FadeInUp.delay(i * 60).duration(300)} style={styles.statBox}>
               <MaterialCommunityIcons name={s.icon as any} size={20} color="#FF5C00" />
@@ -234,7 +235,7 @@ export default function WorkerEarnings() {
                     <View style={styles.reportBarTrack}>
                       <View style={[styles.reportBar, { width: `${Math.max((m.earnings / max) * 100, m.earnings > 0 ? 4 : 1)}%` }]} />
                     </View>
-                    <Text style={styles.reportAmt}>₹{m.earnings}</Text>
+                    <Text style={styles.reportAmt}>{formatMoneyWithSymbol(m.earnings)}</Text>
                   </View>
                 ));
               })()}
@@ -293,7 +294,7 @@ export default function WorkerEarnings() {
         {data?.pendingWithdrawal > 0 && (
           <View style={styles.pendingBox}>
             <MaterialCommunityIcons name="clock-outline" size={18} color="#E65100" />
-            <Text style={styles.pendingText}>₹{data.pendingWithdrawal} {t('pending approval')}</Text>
+            <Text style={styles.pendingText}>{formatMoneyWithSymbol(data.pendingWithdrawal)} {t('pending approval')}</Text>
           </View>
         )}
 
@@ -309,7 +310,7 @@ export default function WorkerEarnings() {
               <MaterialCommunityIcons name="lightning-bolt" size={24} color="#FF9800" />
               <Text style={styles.modalTitle}>{t('Instant Payout')}</Text>
             </View>
-            <Text style={styles.modalSub}>{t('Available')}: ₹{data?.walletBalance || 0}</Text>
+            <Text style={styles.modalSub}>{t('Available')}: {formatMoneyWithSymbol(data?.walletBalance)}</Text>
 
             <Text style={styles.inputLabel}>{t('Amount (₹)')}</Text>
             <View style={styles.inputWrapper}>

@@ -5,7 +5,7 @@ import { bookingService } from '../services/booking.service';
 import { cancellationService } from '../services/cancellation.service';
 import { notificationService } from '../services/notification.service';
 import { sendResponse, sendError } from '../utils/response';
-import { moneyEqual } from '../utils/money';
+import { moneyEqual, guardAmount } from '../utils/money';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { devBackdoorsEnabled } from '../config/env';
 
@@ -173,12 +173,13 @@ export const paymentController = {
   addMoney: async (req: AuthRequest, res: Response) => {
     try {
       const { amount } = req.body;
-      if (!amount || amount < 1) return sendError(res, 400, 'Invalid amount');
+      const amt = guardAmount(amount);
+      if (amt === null) return sendError(res, 400, 'Invalid amount');
 
       const userId = req.user!.userId;
       const orderIdStr = `wallet_topup_${userId}_${Date.now()}`;
 
-      const order = await paymentService.createOrder(orderIdStr, amount, userId);
+      const order = await paymentService.createOrder(orderIdStr, amt, userId);
       sendResponse(res, 200, order);
     } catch (e: any) {
       sendError(res, 500, e.message || 'Failed to create topup order');
@@ -198,8 +199,9 @@ export const paymentController = {
       // The mock path is dev-only — never usable in production.
       let amount: number;
       if (devBackdoorsEnabled && isMock) {
-        amount = Number(requestedAmount);
-        if (!amount || amount < 1) return sendError(res, 400, 'Invalid amount');
+        const guarded = guardAmount(requestedAmount);
+        if (guarded === null) return sendError(res, 400, 'Invalid amount');
+        amount = guarded;
       } else {
         const verified = await paymentService.verifyWalletOrder(orderId, userId);
         amount = Number(verified.amount);
@@ -267,7 +269,8 @@ export const paymentController = {
   withdraw: async (req: AuthRequest, res: Response) => {
     try {
       const { amount, method = 'UPI', upiId, bankAccount, ifscCode, bankName, accountHolderName } = req.body;
-      if (!amount || amount < 1) return sendError(res, 400, 'Invalid amount');
+      const amt = guardAmount(amount);
+      if (amt === null) return sendError(res, 400, 'Invalid amount');
 
       let description = '';
       if (method === 'UPI') {
@@ -303,37 +306,37 @@ export const paymentController = {
         if (worker.isFrozen || (worker.walletBalance ?? 0) < 0) {
           return sendError(res, 403, 'Your account is frozen due to unpaid penalties');
         }
-        if ((worker.walletBalance || 0) < amount) return sendError(res, 400, 'Insufficient balance');
+        if ((worker.walletBalance || 0) < amt) return sendError(res, 400, 'Insufficient balance');
       } else {
         const customer = await prisma.customerProfile.findUnique({
           where: { userId },
           select: { walletBalance: true },
         });
         if (!customer) return sendError(res, 404, 'Profile not found');
-        if ((customer.walletBalance || 0) < amount) return sendError(res, 400, 'Insufficient balance');
+        if ((customer.walletBalance || 0) < amt) return sendError(res, 400, 'Insufficient balance');
       }
 
       // Atomic conditional decrement — safe against concurrent withdrawals
       const result = isWorker
         ? await prisma.workerProfile.updateMany({
-            where: { userId, walletBalance: { gte: amount } },
-            data: { walletBalance: { decrement: amount } },
+            where: { userId, walletBalance: { gte: amt } },
+            data: { walletBalance: { decrement: amt } },
           })
         : await prisma.customerProfile.updateMany({
-            where: { userId, walletBalance: { gte: amount } },
-            data: { walletBalance: { decrement: amount } },
+            where: { userId, walletBalance: { gte: amt } },
+            data: { walletBalance: { decrement: amt } },
           });
       if (result.count === 0) return sendError(res, 400, 'Insufficient balance');
-      walletBalance = walletBalance - Number(amount);
+      walletBalance = walletBalance - amt;
 
       await prisma.transaction.create({
-        data: { userId, type: 'WALLET_WITHDRAWAL', amount: -amount, description, status: 'completed' },
+        data: { userId, type: 'WALLET_WITHDRAWAL', amount: -amt, description, status: 'completed' },
       });
 
       await notificationService.sendPushNotification(
         userId, 'Withdrawal Initiated',
-        `Your withdrawal of ₹${Number(amount).toLocaleString('en-IN')} has been submitted and will be processed shortly.`,
-        'withdrawal', { amount, method },
+        `Your withdrawal of ₹${amt.toLocaleString('en-IN')} has been submitted and will be processed shortly.`,
+        'withdrawal', { amount: amt, method },
       );
 
       sendResponse(res, 200, { walletBalance });

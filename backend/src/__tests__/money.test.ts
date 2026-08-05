@@ -1,4 +1,4 @@
-import { roundINR, roundINRWhole, toPaise, moneyEqual, pct, sumINR, formatINR } from '../utils/money';
+import { roundINR, roundINRWhole, toPaise, moneyEqual, pct, sumINR, formatINR, guardAmount, MAX_MONEY_AMOUNT } from '../utils/money';
 
 // centralized rounding, INR currency, no false precision.
 describe('Money util — rounding & format', () => {
@@ -39,5 +39,37 @@ describe('Money util — rounding & format', () => {
   test('handles non-finite input safely', () => {
     expect(roundINR(NaN)).toBe(0);
     expect(roundINR(Infinity)).toBe(0);
+  });
+});
+
+describe('Money util — guardAmount validation', () => {
+  test('accepts realistic positive amounts and rounds to paise', () => {
+    expect(guardAmount(100)).toBe(100);
+    expect(guardAmount('150.5')).toBe(150.5);
+    expect(guardAmount(99999999.999)).toBe(100000000);
+  });
+
+  test('rejects empty / non-numeric / non-finite input', () => {
+    expect(guardAmount(undefined)).toBeNull();
+    expect(guardAmount(null)).toBeNull();
+    expect(guardAmount('')).toBeNull();
+    expect(guardAmount('abc')).toBeNull();
+    expect(guardAmount(NaN)).toBeNull();
+    expect(guardAmount(Infinity)).toBeNull();
+  });
+
+  test('rejects zero and negatives by default (positive guard)', () => {
+    expect(guardAmount(0)).toBeNull();
+    expect(guardAmount(-5)).toBeNull();
+  });
+
+  test('allows zero when allowZero is set', () => {
+    expect(guardAmount(0, { allowZero: true })).toBe(0);
+  });
+
+  test('enforces the realistic ceiling', () => {
+    expect(guardAmount(MAX_MONEY_AMOUNT)).toBe(MAX_MONEY_AMOUNT);
+    expect(guardAmount(MAX_MONEY_AMOUNT + 1)).toBeNull();
+    expect(guardAmount(-MAX_MONEY_AMOUNT - 1)).toBeNull();
   });
 });

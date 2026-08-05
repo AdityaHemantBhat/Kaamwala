@@ -13,7 +13,8 @@ import { matchingService } from '../services/matching.service';
 import { analyticsService } from '../services/analytics.service';
 import { linkMediaToScope } from '../services/media.service';
 import { logger } from '../utils/logger';
-import { roundINR, roundINRWhole } from '../utils/money';
+import { roundINR, roundINRWhole, guardAmount } from '../utils/money';
+import { haversineDistance } from '../utils/haversine';
 import { isAdminRole } from '../utils/roles';
 import { paymentCalculationService } from '../services/paymentCalculation.service';
 
@@ -30,17 +31,26 @@ export const requestsController = {
       // Platform minimum-floor validation — never trust frontend budget.
       const pricingUnit = req.body.pricingUnit === 'PER_HOUR' ? 'PER_HOUR' : 'FLAT';
       if (req.body.budget !== undefined && req.body.budget !== null) {
+        const guardedBudget = guardAmount(req.body.budget, { allowZero: true });
+        if (guardedBudget === null) return sendError(res, 400, 'Invalid budget');
         const floorOk = await pricingService.validateMinimumFloor(
-          req.body.category, Number(req.body.budget), pricingUnit, req.body.city,
+          req.body.category, guardedBudget, pricingUnit, req.body.city,
         );
         if (!floorOk) return sendError(res, 400, 'Budget is below the platform minimum for this service');
       }
 
-      // Service location is authoritative for pricing.
+      // Service location is authoritative for pricing. When the customer sends
+      // no explicit addressId, fall back to their default saved address so the
+      // request still carries location context (city + pincode + coords for
+      // nearby-worker matching) instead of silently losing them.
       let address = null;
       if (req.body.addressId) {
         address = await prisma.address.findFirst({ where: { id: req.body.addressId, userId: req.user!.userId } });
         if (!address) return sendError(res, 400, 'Address not found');
+      } else {
+        address = await prisma.address.findFirst({
+          where: { userId: req.user!.userId, isDefault: true, isDeleted: false },
+        });
       }
 
       // Resolve 'What's Happening?' to canonical issue (or Other) + discovery
@@ -129,6 +139,9 @@ export const requestsController = {
       const { amount, message, pricingUnit = 'FLAT' } = req.body;
       const workerId = req.user!.userId;
 
+      const amt = guardAmount(amount);
+      if (amt === null) return sendError(res, 400, 'Invalid amount');
+
       const request = await prisma.customerJobRequest.findUnique({ where: { id } });
       if (!request || request.status !== 'OPEN') return sendError(res, 404, 'Request not available');
 
@@ -140,7 +153,7 @@ export const requestsController = {
 
       // Platform minimum floor — market-derived per the request's city.
       const unit = pricingUnit === 'PER_HOUR' ? 'PER_HOUR' : 'FLAT';
-      const floorOk = await pricingService.validateMinimumFloor(request.category, Number(amount), unit, request.city);
+      const floorOk = await pricingService.validateMinimumFloor(request.category, amt, unit, request.city);
       if (!floorOk) return sendError(res, 400, 'Quote is below the platform minimum for this service');
 
       // Idempotent per-worker: reuse the worker's existing interest + update its quote
@@ -152,7 +165,7 @@ export const requestsController = {
       if (existing) {
         interest = await prisma.requestInterest.update({
           where: { id: existing.id },
-          data: { quoteAmount: Number(amount), quoteUnit: unit, quoteMessage: message || null, status: 'PENDING' },
+          data: { quoteAmount: amt, quoteUnit: unit, quoteMessage: message || null, status: 'PENDING' },
         });
       } else {
         const workerUser = await prisma.user.findUnique({ where: { id: workerId }, select: { name: true } });
@@ -161,7 +174,7 @@ export const requestsController = {
             requestId: id, workerId, workerProfileId: workerProfile.id,
             workerName: workerUser?.name || 'Worker', workerRating: workerProfile.rating,
             workerCategory: workerProfile.category, message,
-            quoteAmount: Number(amount), quoteUnit: unit, quoteMessage: message || null,
+            quoteAmount: amt, quoteUnit: unit, quoteMessage: message || null,
           },
         });
       }
@@ -170,7 +183,7 @@ export const requestsController = {
       await prisma.requestOffer.create({
         data: {
           requestId: id, interestId: interest.id, offeredBy: 'WORKER',
-          amount: Number(amount), pricingUnit: unit, message: message || null,
+          amount: amt, pricingUnit: unit, message: message || null,
         },
       });
 
@@ -178,16 +191,16 @@ export const requestsController = {
       if (customerProfile) {
         emitToUser(customerProfile.userId, 'request_quote', {
           requestId: id, interestId: interest.id, workerId, workerName: interest.workerName,
-          amount: Number(amount), pricingUnit: unit, message: message || null,
+          amount: amt, pricingUnit: unit, message: message || null,
         });
         await notificationService.sendPushNotification(
           customerProfile.userId, 'Worker Quote!',
-          `${interest.workerName} quoted ₹${Number(amount).toLocaleString('en-IN')} for: ${request.title}`, 'worker_quote',
+          `${interest.workerName} quoted ₹${amt.toLocaleString('en-IN')} for: ${request.title}`, 'worker_quote',
           { requestId: id },
         );
       }
 
-      analyticsService.track('request_quote', { userId: workerId, role: 'WORKER', category: request.category, issueId: request.issueId || undefined, zone: request.city || undefined, ip: req.ip || req.socket.remoteAddress, payload: { requestId: id, amount: Number(amount) } });
+      analyticsService.track('request_quote', { userId: workerId, role: 'WORKER', category: request.category, issueId: request.issueId || undefined, zone: request.city || undefined, ip: req.ip || req.socket.remoteAddress, payload: { requestId: id, amount: amt } });
       sendResponse(res, 200, interest, 'Quote sent to customer!');
     } catch (e: any) { sendError(res, 500, e.message); }
   },
@@ -196,6 +209,9 @@ export const requestsController = {
     try {
       const { id } = req.params;
       const { interestId, amount, message } = req.body;
+
+      const amt = guardAmount(amount);
+      if (amt === null) return sendError(res, 400, 'Invalid amount');
 
       const profile = await prisma.customerProfile.findUnique({ where: { userId: req.user!.userId } });
       if (!profile) return sendError(res, 404, 'Customer profile not found');
@@ -209,26 +225,26 @@ export const requestsController = {
       if (!interest) return sendError(res, 404, 'Interest not found');
 
       const unit = interest.quoteUnit === 'PER_HOUR' ? 'PER_HOUR' : 'FLAT';
-      const floorOk = await pricingService.validateMinimumFloor(request.category, Number(amount), unit, request.city);
+      const floorOk = await pricingService.validateMinimumFloor(request.category, amt, unit, request.city);
       if (!floorOk) return sendError(res, 400, 'Counter offer is below the platform minimum for this service');
 
       await prisma.requestOffer.create({
         data: {
           requestId: id, interestId, offeredBy: 'CUSTOMER',
-          amount: Number(amount), pricingUnit: unit, message: message || null,
+          amount: amt, pricingUnit: unit, message: message || null,
         },
       });
 
       emitToUser(interest.workerId, 'request_counter', {
-        requestId: id, interestId, amount: Number(amount), pricingUnit: unit, message: message || null,
+        requestId: id, interestId, amount: amt, pricingUnit: unit, message: message || null,
       });
       await notificationService.sendPushNotification(
         interest.workerId, 'New Counter Offer',
-        `Customer countered ₹${Number(amount).toLocaleString('en-IN')} for your quote`, 'request_counter',
+        `Customer countered ₹${amt.toLocaleString('en-IN')} for your quote`, 'request_counter',
         { requestId: id },
       );
 
-      analyticsService.track('request_counter', { userId: req.user!.userId, role: 'CUSTOMER', category: request.category, issueId: request.issueId || undefined, zone: request.city || undefined, ip: req.ip || req.socket.remoteAddress, payload: { requestId: id, amount: Number(amount) } });
+      analyticsService.track('request_counter', { userId: req.user!.userId, role: 'CUSTOMER', category: request.category, issueId: request.issueId || undefined, zone: request.city || undefined, ip: req.ip || req.socket.remoteAddress, payload: { requestId: id, amount: amt } });
       sendResponse(res, 200, null, 'Counter offer sent to worker!');
     } catch (e: any) { sendError(res, 500, e.message); }
   },
@@ -293,18 +309,59 @@ export const requestsController = {
       if (category) where.category = category;
       if (city) where.city = city;
 
-      const requests = await prisma.customerJobRequest.findMany({
-        where,
-        include: { customer: { select: { user: { select: { name: true, phone: true } } } } },
-        orderBy: { createdAt: 'desc' }, take: 50,
+      // Server-side service-area filter. A worker in Kolkata must never see a
+      // request posted in Goa: requests are shown only when they fall within
+      // the worker's service radius (or, when coordinates are unavailable on
+      // either side, match the worker's city). This is enforced here — on the
+      // backend — rather than trusting the client to send a location filter.
+      const worker = await prisma.workerProfile.findUnique({
+        where: { userId: req.user!.userId },
+        select: { latitude: true, longitude: true, serviceRadiusKm: true, city: true },
       });
 
-      sendResponse(res, 200, requests);
+      // The worker app may send its freshest location so filtering is accurate
+      // even if the stored profile coordinates are stale (last "go online").
+      const qLat = Number(req.query.lat);
+      const qLng = Number(req.query.lng);
+      const qRadius = Number(req.query.radius);
+      const lat = Number.isFinite(qLat) ? qLat : (worker?.latitude ?? null);
+      const lng = Number.isFinite(qLng) ? qLng : (worker?.longitude ?? null);
+      const radiusKm = Number.isFinite(qRadius) && qRadius > 0 ? qRadius : (worker?.serviceRadiusKm ?? 10);
+
+      const requests = await prisma.customerJobRequest.findMany({
+        where,
+        include: {
+          customer: { select: { user: { select: { name: true, phone: true } } } },
+          address: { select: { latitude: true, longitude: true } },
+        },
+        orderBy: { createdAt: 'desc' }, take: 100,
+      });
+
+      // No worker coordinates at all → keep previous behavior (list all), so a
+      // worker who has never shared location is not left with an empty feed.
+      if (lat == null || lng == null || !Number.isFinite(lat) || !Number.isFinite(lng)) {
+        return sendResponse(res, 200, requests);
+      }
+
+      const workerCity = worker?.city?.trim().toLowerCase();
+      const nearby = requests.filter((r) => {
+        const aLat = r.address?.latitude;
+        const aLng = r.address?.longitude;
+        if (Number.isFinite(aLat) && Number.isFinite(aLng)) {
+          return haversineDistance(lat!, lng!, aLat!, aLng!) <= radiusKm;
+        }
+        // No coordinates on the request — fall back to an exact city match so a
+        // request with only a free-text city still reaches nearby workers.
+        return !!r.city && !!workerCity && r.city.trim().toLowerCase() === workerCity;
+      });
+
+      sendResponse(res, 200, nearby);
     } catch (e: any) { sendError(res, 500, e.message); }
   },
 
   expressInterest: async (req: AuthRequest, res: Response) => {
     try {
+      const { message } = req.body || {};
       const request = await prisma.customerJobRequest.findUnique({ where: { id: req.params.id } });
       if (!request || request.status !== 'OPEN') return sendError(res, 404, 'Request not available');
 
@@ -351,6 +408,7 @@ export const requestsController = {
           requestId: req.params.id, workerId: req.user!.userId,
           workerProfileId: workerProfile.id, workerName: workerUser?.name || 'Worker',
           workerRating: workerProfile.rating, workerCategory: workerProfile.category,
+          message: typeof message === 'string' ? message.trim().slice(0, 500) || null : null,
         },
       });
 

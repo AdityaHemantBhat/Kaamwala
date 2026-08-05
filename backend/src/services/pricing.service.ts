@@ -257,14 +257,14 @@ export const pricingService = {
     }
 
     // 9. Cold start → configured seed reference (never invent)
-    return await this._seedFor(category, pricingUnit, zone, algorithmVersion, 'SEED_REFERENCE');
+    return await this._seedFor(category, pricingUnit, zone, algorithmVersion, 'SEED_REFERENCE', issueId, scope);
   },
 
  /**
  * Seed/reference price — reads admin-configured MarketConfig SEED_REFERENCE_PRICES
  * (a JSON category→₹ map), falling back to the researched in-code baseline.
  */
-  async _seedFor(category: ServiceCategory, pricingUnit: string, zone: string, algorithmVersion: string, fallbackSource: string): Promise<number> {
+  async _seedFor(category: ServiceCategory, pricingUnit: string, zone: string, algorithmVersion: string, fallbackSource: string, issueId?: string | null, scope?: unknown): Promise<number> {
     let seed = SEED_BASELINE[category]?.[pricingUnit] || SEED_BASELINE[category]?.FLAT || 300;
     try {
       const stored = await prisma.marketConfig.findUnique({ where: { key: 'SEED_REFERENCE_PRICES' } });
@@ -276,7 +276,8 @@ export const pricingService = {
     const rounded = roundINRWhole(seed);
     prisma.pricingAudit.create({
       data: {
-        category, pricingUnit, zone,
+        category, issueId: issueId || null, scope: scope !== undefined && scope !== null ? scope as any : null,
+        pricingUnit, zone,
         referencePrice: rounded, confidence: 10, fallbackSource,
         algorithmVersion, effectiveSample: 0, metadata: { reason: 'insufficient_evidence', source: 'SEED_REFERENCE_PRICES' },
       },

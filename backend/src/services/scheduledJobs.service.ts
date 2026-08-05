@@ -15,6 +15,11 @@ export async function expireUrgentRequests(): Promise<number> {
   });
 
   if (expired.count > 0) {
+    // Close the offer-round audit trail for every request that just expired.
+    await prisma.urgentOfferRound.updateMany({
+      where: { endedAt: null, urgentRequest: { status: 'EXPIRED' } },
+      data: { endedAt: new Date(), outcome: 'EXPIRED' },
+    });
     // Notify affected customers via socket
     const stale = await prisma.urgentRequest.findMany({
       where: { status: 'EXPIRED', updatedAt: { gte: new Date(Date.now() - 60 * 1000) } },
