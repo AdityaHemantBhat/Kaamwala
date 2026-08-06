@@ -26,6 +26,11 @@ const envSchema = z.object({
   CF_SECRET_KEY: z.string(),
   CF_PAYOUT_APP_ID: z.string().optional(),
   CF_PAYOUT_SECRET_KEY: z.string().optional(),
+  // Cashfree webhook secret — when set, the /payments/webhook endpoint
+  // reconciles paid bookings that were never verified by the app. Signature
+  // verification FAILS CLOSED when this is missing (webhook returns 503), so an
+  // unconfigured secret can never silently accept unverified events.
+  CF_WEBHOOK_SECRET: z.string().optional(),
   CF_ENV: z.enum(['SANDBOX', 'PRODUCTION']).default('SANDBOX'),
   // 32-byte key (base64) for AES-256-GCM encryption-at-rest of chat messages.
   // Generate: node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"

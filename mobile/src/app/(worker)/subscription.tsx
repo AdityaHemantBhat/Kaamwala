@@ -81,7 +81,7 @@ export default function WorkerSubscription() {
       const order = orderRes.data?.data;
       if (!order?.orderId) throw new Error('No order');
 
-      const { startCashfreePayment } = require('../../utils/cashfree');
+      const { startCashfreePayment, isUserCancellation } = require('../../utils/cashfree');
       const paymentResult = await startCashfreePayment(order.paymentSessionId, order.orderId);
 
       if (paymentResult.status === 'SUCCESS') {
@@ -100,7 +100,15 @@ export default function WorkerSubscription() {
           type: 'success',
         });
       } else {
-        throw new Error('PAYMENT_CANCELLED');
+        // Backing out of checkout is expected (nothing charged); a real gateway
+        // failure is not. Show the right tone instead of always "cancelled".
+        const cancelled = isUserCancellation(paymentResult);
+        showToast({
+          message: cancelled
+            ? t('Payment cancelled')
+            : t('Payment failed. Please try again.'),
+          type: cancelled ? 'info' : 'error',
+        });
       }
     } catch (e: any) {
       if (e?.response?.data?.error) {
@@ -110,6 +118,10 @@ export default function WorkerSubscription() {
         e?.message?.includes('cancelled')
       ) {
         showToast({ message: t('Payment cancelled'), type: 'info' });
+      } else if (e?.message) {
+        // Surface the SDK's real reason (e.g. "Cashfree SDK is not available in
+        // this build") instead of masking it behind a generic failure toast.
+        showToast({ message: e.message, type: 'error' });
       } else {
         showToast({
           message: t('Payment failed. Please try again.'),
@@ -124,17 +136,39 @@ export default function WorkerSubscription() {
   const handleBoost = useCallback(async () => {
     setProcessing(true);
     try {
-      await apiClient.post('/workers/subscription/boost');
-      showToast({
-        message: t('Profile boosted! Featured for 7 days.'),
-        type: 'success',
-      });
-      const profileRes = await apiClient.get('/workers/profile/me');
-      setIsFeatured(!!profileRes.data?.data?.isFeatured);
-      setFeaturedUntil(profileRes.data?.data?.featuredUntil || null);
+      // Boost goes through the same Cashfree checkout as plan upgrades — never
+      // applied directly. Create the order, run the SDK, verify server-side.
+      const orderRes = await apiClient.post('/workers/subscription/create-boost-order');
+      const order = orderRes.data?.data;
+      if (!order?.orderId) throw new Error('No order');
+
+      const { startCashfreePayment, isUserCancellation } = require('../../utils/cashfree');
+      const paymentResult = await startCashfreePayment(order.paymentSessionId, order.orderId);
+
+      if (paymentResult.status === 'SUCCESS') {
+        await apiClient.post('/workers/subscription/verify-boost', { orderId: order.orderId });
+        showToast({ message: t('Profile boosted! Featured for 7 days.'), type: 'success' });
+        const profileRes = await apiClient.get('/workers/profile/me');
+        setIsFeatured(!!profileRes.data?.data?.isFeatured);
+        setFeaturedUntil(profileRes.data?.data?.featuredUntil || null);
+      } else {
+        // Backing out of checkout is expected (nothing charged); a real gateway
+        // failure is not. Show the right tone instead of always "cancelled".
+        const cancelled = isUserCancellation(paymentResult);
+        showToast({
+          message: cancelled ? t('Payment cancelled') : t('Boost failed. Please try again.'),
+          type: cancelled ? 'info' : 'error',
+        });
+      }
     } catch (e: any) {
+      // Don't mask the real reason behind a generic "Boost failed": a server
+      // error (API message) and an SDK error (e.g. "Cashfree SDK is not
+      // available in this build") both carry useful diagnostics. Only fall back
+      // to the generic text when neither exists.
       if (e?.response?.data?.error) {
         showToast({ message: e.response.data.error, type: 'error' });
+      } else if (e?.message) {
+        showToast({ message: e.message, type: 'error' });
       } else {
         showToast({
           message: t('Boost failed. Please try again.'),
@@ -168,6 +202,13 @@ export default function WorkerSubscription() {
       </SafeAreaView>
     );
   }
+
+  // Reuse one flag: the featured badge drives both the status banner and the
+  // boost button's active ("Extend") styling.
+  const boostActive = isFeaturedActive(isFeatured, featuredUntil);
+  // The "Upgrade to X" CTA takes the selected plan's accent color (ELITE →
+  // purple, PRO → orange) so the button mirrors the card the worker picked.
+  const selectedPlan = plans.find((p) => p.id === selected);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: SUBSCRIPTION_COLORS.light }} edges={['top']}>
@@ -232,7 +273,10 @@ export default function WorkerSubscription() {
         {/* Action Button */}
         <View style={styles.actionArea}>
           {selected !== current && selected !== 'FREE' ? (
-            <Pressable style={styles.primaryBtn} onPress={handleSubscribe} disabled={processing}>
+            <Pressable
+              style={[styles.primaryBtn, { backgroundColor: selectedPlan?.color || SUBSCRIPTION_COLORS.primary }]}
+              onPress={handleSubscribe}
+              disabled={processing}>
               {processing ? (
                 <ActivityIndicator size="small" color={SUBSCRIPTION_COLORS.white} />
               ) : (
@@ -292,20 +336,23 @@ export default function WorkerSubscription() {
             <Pressable
               style={[
                 styles.boostBtn,
-                isFeaturedActive(isFeatured, featuredUntil) && styles.boostBtnActive,
+                boostActive && styles.boostBtnActive,
               ]}
               onPress={handleBoost}
               disabled={processing}>
               {processing ? (
-                <ActivityIndicator size="small" color={SUBSCRIPTION_COLORS.white} />
+                <ActivityIndicator
+                  size="small"
+                  color={boostActive ? SUBSCRIPTION_COLORS.gray : SUBSCRIPTION_COLORS.white}
+                />
               ) : (
-                <Text style={styles.boostBtnText}>
-                  {isFeaturedActive(isFeatured, featuredUntil) ? t('Extend Boost') : t('Boost Now')}
+                <Text style={[styles.boostBtnText, boostActive && styles.boostBtnTextActive]}>
+                  {boostActive ? t('Extend Boost') : t('Boost Now')}
                 </Text>
               )}
             </Pressable>
             <Text style={styles.boostNote}>
-              {t('Deducted from wallet balance. Requires sufficient funds.')}
+              {t('Secure payment via Cashfree checkout.')}
             </Text>
           </View>
         </View>
@@ -398,15 +445,15 @@ const styles = StyleSheet.create({
 
   planRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   planName: {
-    fontFamily: 'Inter_800ExtraBold',
-    fontSize: 20,
+    fontFamily: 'Inter_700Bold',
+    fontSize: 18,
     color: SUBSCRIPTION_COLORS.dark,
   },
   planPrice: { fontFamily: 'Inter_600SemiBold', fontSize: 14, color: '#666' },
   planDesc: {
     fontFamily: 'Inter_500Medium',
     fontSize: 13,
-    color: '#666',
+    color: SUBSCRIPTION_COLORS.gray,
     marginTop: 4,
   },
 
@@ -416,7 +463,7 @@ const styles = StyleSheet.create({
     fontSize: 24,
     color: SUBSCRIPTION_COLORS.dark,
   },
-  planPriceUnit: { fontFamily: 'Inter_500Medium', fontSize: 12, color: '#999' },
+  planPriceUnit: { fontFamily: 'Inter_500Medium', fontSize: 12, color: SUBSCRIPTION_COLORS.gray },
 
   currentBadge: {
     alignSelf: 'flex-start',
@@ -428,9 +475,9 @@ const styles = StyleSheet.create({
   },
   currentBadgeText: { fontFamily: 'Inter_700Bold', fontSize: 10, color: '#666' },
 
-  featureList: { marginTop: 16, borderTopWidth: 1, borderTopColor: '#F0F0F0', paddingTop: 16, gap: 8 },
-  featureRow: { flexDirection: 'row', alignItems: 'center' },
-  featureText: { fontFamily: 'Inter_500Medium', fontSize: 13, color: '#333', marginLeft: 8 },
+  featureList: { marginTop: 14, borderTopWidth: 1, borderTopColor: SUBSCRIPTION_COLORS.lightGray, paddingTop: 14, gap: 8 },
+  featureRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  featureText: { fontFamily: 'Inter_400Regular', fontSize: 13, color: SUBSCRIPTION_COLORS.darkGray },
 
   actionArea: { marginTop: 24 },
   primaryBtn: {
@@ -480,13 +527,16 @@ const styles = StyleSheet.create({
   boostSection: { marginTop: 24 },
   boostCard: {
     backgroundColor: SUBSCRIPTION_COLORS.white,
-    borderRadius: 20,
+    borderRadius: 16,
     padding: 20,
     borderWidth: 2,
-    borderColor: '#FFD7C2',
-    elevation: 1,
-    overflow: 'hidden',
-    marginBottom: 16,
+    borderColor: SUBSCRIPTION_COLORS.border,
+    marginBottom: 14,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
   boostBtn: {
     backgroundColor: SUBSCRIPTION_COLORS.primary,
@@ -497,7 +547,15 @@ const styles = StyleSheet.create({
     marginTop: 20,
     elevation: 4,
   },
-  boostBtnActive: { backgroundColor: '#4CAF50' },
+  // "Extend Boost" shows when the badge is already active — neutral gray body
+  // (matches "Current Plan") with a primary border so it still reads as the
+  // actionable button, not a dead state.
+  boostBtnActive: {
+    backgroundColor: '#EBEBEB',
+    borderWidth: 2,
+    borderColor: SUBSCRIPTION_COLORS.primary,
+  },
+  boostBtnTextActive: { color: SUBSCRIPTION_COLORS.gray },
   boostBtnText: {
     fontFamily: 'Inter_700Bold',
     fontSize: 16,
@@ -505,9 +563,9 @@ const styles = StyleSheet.create({
   },
   boostNote: {
     fontFamily: 'Inter_400Regular',
-    fontSize: 11,
-    color: '#999',
+    fontSize: 12,
+    color: SUBSCRIPTION_COLORS.gray,
     textAlign: 'center',
-    marginTop: 10,
+    marginTop: 12,
   },
 });

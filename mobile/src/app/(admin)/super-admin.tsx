@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, Pressable, TextInput, RefreshControl, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, Pressable, TextInput, RefreshControl, StyleSheet, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { BrutalInkLoader } from '../../components/ui/BrutalInkLoader';
 import { useToast } from '../../components/ui/ToastProvider';
@@ -30,7 +31,7 @@ export default function SuperAdminPanel() {
 
   useEffect(() => { loadAll(); }, [activeTab]);
 
-  const loadAll = async () => {
+  async function loadAll() {
     setLoading(true);
     try {
       if (activeTab === 'admins') {
@@ -48,7 +49,7 @@ export default function SuperAdminPanel() {
       }
     } catch {}
     finally { setLoading(false); }
-  };
+  }
 
   const makeAdmin = async () => {
     if (!newPhone || newPhone.length < 10) return;
@@ -147,7 +148,12 @@ export default function SuperAdminPanel() {
         })}
       </View>
 
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.scrollContent}>
+      <KeyboardAwareScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        bottomOffset={16}
+      >
         
         {/* Tab: Admins List */}
         {activeTab === 'admins' && (
@@ -431,7 +437,7 @@ export default function SuperAdminPanel() {
         )}
 
         <View style={{ height: 40 }} />
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </SafeAreaView>
   );
 }

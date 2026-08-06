@@ -73,7 +73,6 @@ export function resolveNotificationRoute(
   const bookingId = data.bookingId;
   const requestId = data.requestId;
   const ticketId = data.ticketId;
-  const submissionId = data.submissionId;
   const isWorker = role === 'WORKER';
 
   const bookings = isWorker ? '/(worker)/bookings' : '/(customer)/bookings';
@@ -98,7 +97,7 @@ export function resolveNotificationRoute(
     case 'worker_quote':
       return !isWorker ? '/(customer)/bookings' : home;
     case 'verification':
-      return isWorker ? (submissionId ? `/(worker)/verification` : '/(worker)/verification') : home;
+      return isWorker ? '/(worker)/verification' : home;
     case 'subscription':
       return isWorker ? '/(worker)/subscription' : '/(customer)/subscription';
     case 'withdrawal':

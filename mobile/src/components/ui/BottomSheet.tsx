@@ -30,6 +30,10 @@ export const BottomSheet = forwardRef<GorhomBottomSheet, BottomSheetProps>(
         enablePanDownToClose
         backdropComponent={renderBackdrop}
         onClose={onClose}
+        // Keep the sheet content visible above the soft keyboard when an input
+        // inside it is focused, and restore the sheet position on blur.
+        keyboardBehavior="interactive"
+        keyboardBlurBehavior="restore"
         backgroundStyle={styles.background}
         handleIndicatorStyle={styles.indicator}
       >

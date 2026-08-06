@@ -7,11 +7,10 @@ import {
   Pressable,
   TextInput,
   RefreshControl,
-  KeyboardAvoidingView,
-  Platform,
   ActivityIndicator,
   Modal,
 } from 'react-native';
+import { KeyboardAvoidingView, KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
@@ -161,6 +160,50 @@ function getStatusLabel(status: string): string {
   }
 }
 
+// Upload filenames must be unique per photo, but component render must stay
+// pure — capture the timestamp once at module load and bump a monotonic
+// counter instead of calling Date.now() in the upload handler.
+let _uploadSeq = 0;
+const UPLOAD_EPOCH = Date.now();
+
+// ─── Segmented control (module scope so it isn't recreated on each render) ───
+
+function SegmentedControl({ showForm, onToggle }: { showForm: boolean; onToggle: (v: boolean) => void }) {
+  const t = useT();
+  return (
+    <View style={styles.segmentOuter}>
+      <View style={styles.segmentBg}>
+        <Pressable
+          style={[styles.segmentBtn, showForm && styles.segmentBtnActive]}
+          onPress={() => onToggle(true)}
+        >
+          <MaterialCommunityIcons
+            name="plus-circle-outline"
+            size={18}
+            color={showForm ? '#FFFFFF' : C.ink}
+          />
+          <Text style={[styles.segmentLabel, showForm && styles.segmentLabelActive]}>
+            {t('Create')}
+          </Text>
+        </Pressable>
+        <Pressable
+          style={[styles.segmentBtn, !showForm && styles.segmentBtnActive]}
+          onPress={() => onToggle(false)}
+        >
+          <MaterialCommunityIcons
+            name="format-list-bulleted"
+            size={18}
+            color={!showForm ? '#FFFFFF' : C.ink}
+          />
+          <Text style={[styles.segmentLabel, !showForm && styles.segmentLabelActive]}>
+            {t('My Requests')}
+          </Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
 // ─── Component ───────────────────────────────────────────────────────
 
 export default function PostRequest() {
@@ -275,10 +318,6 @@ export default function PostRequest() {
 
   // ── Data Loading ──
 
-  useEffect(() => {
-    loadRequests();
-  }, []);
-
   const loadRequests = useCallback(async () => {
     try {
       const res = await apiClient.get('/requests');
@@ -288,6 +327,10 @@ export default function PostRequest() {
     } finally {
       setLoading(false);
     }
+  }, []);
+
+  useEffect(() => {
+    loadRequests();
   }, []);
 
   const onRefresh = useCallback(async () => {
@@ -423,7 +466,7 @@ export default function PostRequest() {
         for (const img of images) {
           try {
             const formData = new FormData();
-            formData.append('file', { uri: img.uri, name: `job_${Date.now()}.jpg`, type: 'image/jpeg' } as any);
+            formData.append('file', { uri: img.uri, name: `job_${UPLOAD_EPOCH}_${_uploadSeq++}.jpg`, type: 'image/jpeg' } as any);
             formData.append('purpose', 'request');
             const upRes = await apiClient.post('/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
             const url = upRes.data?.data?.url;
@@ -496,41 +539,6 @@ export default function PostRequest() {
     setRecommendation(null);
     setShowForm(false);
   };
-
-  // ── Section Toggle ──
-
-  const SegmentedControl = () => (
-    <View style={styles.segmentOuter}>
-      <View style={styles.segmentBg}>
-        <Pressable
-          style={[styles.segmentBtn, showForm && styles.segmentBtnActive]}
-          onPress={() => setShowForm(true)}
-        >
-          <MaterialCommunityIcons
-            name="plus-circle-outline"
-            size={18}
-            color={showForm ? '#FFFFFF' : C.ink}
-          />
-          <Text style={[styles.segmentLabel, showForm && styles.segmentLabelActive]}>
-            {t('Create')}
-          </Text>
-        </Pressable>
-        <Pressable
-          style={[styles.segmentBtn, !showForm && styles.segmentBtnActive]}
-          onPress={() => setShowForm(false)}
-        >
-          <MaterialCommunityIcons
-            name="format-list-bulleted"
-            size={18}
-            color={!showForm ? '#FFFFFF' : C.ink}
-          />
-          <Text style={[styles.segmentLabel, !showForm && styles.segmentLabelActive]}>
-            {t('My Requests')}
-          </Text>
-        </Pressable>
-      </View>
-    </View>
-  );
 
   // ── Render: Category Chip ──
 
@@ -1013,13 +1021,14 @@ export default function PostRequest() {
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior="padding"
       >
-        <ScrollView
+        <KeyboardAwareScrollView
           style={styles.scroll}
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
+          bottomOffset={24}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -1065,7 +1074,7 @@ export default function PostRequest() {
 
           {/* ── Segmented Toggle ── */}
           <Animated.View entering={FadeInDown.delay(80).duration(300)}>
-            <SegmentedControl />
+            <SegmentedControl showForm={showForm} onToggle={setShowForm} />
           </Animated.View>
 
           {/* ── Form ── */}
@@ -1076,7 +1085,7 @@ export default function PostRequest() {
 
           {/* Bottom padding */}
           <View style={{ height: 60 }} />
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </KeyboardAvoidingView>
 
       {/* ── Interest Modal ── */}
@@ -1182,6 +1191,9 @@ export default function PostRequest() {
       {/* ── Counter Offer Modal ── */}
       <Modal visible={!!quoteCounter} transparent animationType="fade" onRequestClose={() => setQuoteCounter(null)}>
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', padding: 24 }}>
+          {/* KeyboardAvoidingView lifts the card above the keyboard so the amount
+              field + Send stay visible while typing (edge-to-edge safe). */}
+          <KeyboardAvoidingView behavior="padding" automaticOffset>
           <View style={{ backgroundColor: '#FFFFFF', borderRadius: 20, padding: 24 }}>
             <Text style={{ fontFamily: 'Inter_700Bold', fontSize: 18, color: '#0D0D0D' }}>
               {t('Counter offer to')} {quoteCounter?.workerName}
@@ -1216,6 +1228,7 @@ export default function PostRequest() {
               </Pressable>
             </View>
           </View>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
     </SafeAreaView>

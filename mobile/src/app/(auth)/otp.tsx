@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { View, Text, KeyboardAvoidingView, Platform, TextInput, Pressable, StyleSheet, StatusBar } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet, StatusBar } from 'react-native';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { authApi } from '../../api/auth.api';
 import { useAuthStore } from '../../store/auth.store';
@@ -139,7 +140,7 @@ export default function OtpScreen() {
     {!showTransition && (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <StatusBar barStyle="dark-content" backgroundColor="#F5F0E8" />
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
         {/* Header */}
         <View style={styles.header}>
           <Pressable onPress={() => router.back()} style={styles.backBtn} accessibilityRole="button" accessibilityLabel={t('Back')}>

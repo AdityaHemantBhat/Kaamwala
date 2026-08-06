@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, Pressable, RefreshControl, StyleSheet, Modal, TextInput } from 'react-native';
+import { View, Text, Pressable, RefreshControl, StyleSheet, Modal, TextInput } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -79,10 +80,12 @@ export default function AdminRisk() {
         ))}
       </View>
 
-      <ScrollView
+      <KeyboardAwareScrollView
         style={{ flex: 1 }}
         contentContainerStyle={styles.scrollContent}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor="#FF5C00" />}
+        keyboardShouldPersistTaps="handled"
+        bottomOffset={16}
       >
         {tab === 'anomalies' && (
           <>
@@ -157,7 +160,7 @@ export default function AdminRisk() {
           </>
         )}
         <View style={{ height: 40 }} />
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </SafeAreaView>
   );
 }

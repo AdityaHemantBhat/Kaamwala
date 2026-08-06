@@ -4,6 +4,7 @@ import { SkeletonWorkerBrowseRequests } from '../../components/ui/Skeleton';
 import { Image } from 'expo-image';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { useToast } from '../../components/ui/ToastProvider';
 import { apiClient } from '../../api/client';
 import { socketService } from '../../api/socket';
@@ -52,7 +53,7 @@ export default function BrowseRequests() {
     return () => socketService.off('request_matched', cb);
   }, []);
 
-  const loadRequests = async () => {
+  async function loadRequests() {
     setLoading(true);
     try {
       const params: any = {};
@@ -74,7 +75,7 @@ export default function BrowseRequests() {
     } finally {
       setLoading(false);
     }
-  };
+  }
 
   const handleInterest = async (id: string) => {
     try {
@@ -222,6 +223,9 @@ export default function BrowseRequests() {
       {/* ── Quote Modal ── */}
       <Modal visible={!!quoteRequest} transparent animationType="fade" onRequestClose={() => setQuoteRequest(null)}>
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'center', padding: 24 }}>
+          {/* KAV keeps the amount/message fields + Send button above the keyboard
+              (edge-to-edge safe on Android; centered card). */}
+          <KeyboardAvoidingView behavior="padding" automaticOffset style={{ maxHeight: '90%' }}>
           <View style={{ backgroundColor: '#FFFFFF', borderRadius: 20, padding: 24 }}>
             <Text style={{ fontFamily: 'Inter_700Bold', fontSize: 18, color: '#0D0D0D' }}>
               {t('Send a quote')}
@@ -294,6 +298,7 @@ export default function BrowseRequests() {
               </Pressable>
             </View>
           </View>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
     </SafeAreaView>

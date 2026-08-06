@@ -67,7 +67,7 @@ export default function AdminAuditSearch() {
       {loading ? (
         <View style={styles.centerContainer}><BrutalInkLoader /></View>
       ) : (
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.listContent}>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.listContent} keyboardShouldPersistTaps="handled">
           {results.length === 0 && (
             <View style={styles.emptyState}>
               <MaterialCommunityIcons name="account-search-outline" size={48} color="#D2D2D2" />

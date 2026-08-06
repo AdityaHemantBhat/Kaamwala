@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, Pressable, KeyboardAvoidingView, Platform, TouchableWithoutFeedback, Keyboard, StyleSheet, StatusBar } from 'react-native';
+import { View, Text, TextInput, Pressable, TouchableWithoutFeedback, Keyboard, StyleSheet, StatusBar } from 'react-native';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useT } from '../../utils/i18n';
 import { authApi } from '../../api/auth.api';
@@ -40,7 +41,7 @@ export default function PhoneScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <StatusBar barStyle="dark-content" backgroundColor="#F5F0E8" />
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
           <View style={{ flex: 1 }}>
             {/* Header */}

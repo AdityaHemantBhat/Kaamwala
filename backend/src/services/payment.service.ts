@@ -1,5 +1,6 @@
 import { prisma } from '../config/prisma';
 import { env } from '../config/env';
+import { PaymentStatus } from '@prisma/client';
 import { logger } from '../utils/logger';
 import { moneyEqual } from '../utils/money';
 
@@ -19,6 +20,23 @@ function getCashfree(): any {
 export const paymentService = {
   async createOrder(bookingId: string, amount: number, customerId: string) {
     const user = await prisma.user.findUnique({ where: { id: customerId } });
+
+    // Validate AT ORDER CREATION (not only at verify): a booking order must
+    // reference a real booking that belongs to this customer and match its
+    // total — so a crafted request can never mint an order against someone
+    // else's booking or for a wrong amount. Pseudo-ids (subscriptions, wallet
+    // top-ups) are validated by their own controllers.
+    if (!bookingId.startsWith('wrk_sub_') && !bookingId.startsWith('wrk_boost_') && !bookingId.startsWith('sub_') && !bookingId.startsWith('wallet_topup_')) {
+      const booking = await prisma.booking.findUnique({
+        where: { id: bookingId },
+        select: { id: true, customerId: true, totalAmount: true },
+      });
+      if (!booking) throw new Error('Booking not found');
+      if (booking.customerId !== customerId) throw new Error('Unauthorized');
+      if (!moneyEqual(booking.totalAmount, amount)) {
+        throw new Error('Amount does not match booking total');
+      }
+    }
 
     const request: any = {
       order_amount: String(amount),
@@ -43,7 +61,7 @@ export const paymentService = {
     }
     const order = response.data;
 
-    if (!bookingId.startsWith('wrk_sub_') && !bookingId.startsWith('sub_') && !bookingId.startsWith('wallet_topup_')) {
+    if (!bookingId.startsWith('wrk_sub_') && !bookingId.startsWith('wrk_boost_') && !bookingId.startsWith('sub_') && !bookingId.startsWith('wallet_topup_')) {
       try {
         await prisma.booking.update({
           where: { id: bookingId },
@@ -75,19 +93,26 @@ export const paymentService = {
     }
     // Ownership (order-reuse fix): the paid order must belong to the caller's
     // account. Without this, a reused/borrowed orderId could settle someone
-    // else's booking. Mirrors the check in the subscription verify path.
+    // else's booking. FAIL CLOSED — a missing customer_id is treated as a
+    // mismatch, never silently accepted.
     const orderCustomerId = order.customer_details?.customer_id;
-    if (customerId && orderCustomerId && orderCustomerId !== customerId) {
+    if (customerId && orderCustomerId !== customerId) {
       throw new Error('Order does not belong to this account');
     }
 
-    if (!bookingId.startsWith('wallet_topup_')) {
-      await prisma.booking.update({
-        where: { id: bookingId },
-        data: { paymentStatus: 'PAID', paymentRefId: order.cf_order_id },
-      });
+    if (bookingId.startsWith('wallet_topup_')) {
+      return { order, transitioned: true };
     }
-    return true;
+
+    // Only the first call moves the booking to PAID (conditional claim). A
+    // duplicate/concurrent verify of the same booking is an idempotent no-op
+    // that reports transitioned: false, so downstream side-effects (payout,
+    // fee collection, notifications) run exactly once.
+    const marked = await prisma.booking.updateMany({
+      where: { id: bookingId, paymentStatus: { not: PaymentStatus.PAID } },
+      data: { paymentStatus: 'PAID', paymentRefId: order.cf_order_id },
+    });
+    return { order, transitioned: marked.count > 0 };
   },
 
   async verifyWalletOrder(orderId: string, userId?: string) {
@@ -96,9 +121,9 @@ export const paymentService = {
 
     if (order.order_status !== 'PAID') throw new Error('Payment not completed');
     // Ownership (order-reuse fix) — a paid top-up order can only credit the
-    // wallet of the account that created it.
+    // wallet of the account that created it. Fail closed on missing customer_id.
     const orderCustomerId = order.customer_details?.customer_id;
-    if (userId && orderCustomerId && orderCustomerId !== userId) {
+    if (userId && orderCustomerId !== userId) {
       throw new Error('Order does not belong to this account');
     }
     return { amount: order.order_amount };

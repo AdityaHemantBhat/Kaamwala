@@ -13,6 +13,7 @@ import {
   ScrollView,
   Pressable,
 } from 'react-native';
+import { KeyboardAvoidingView, KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -240,10 +241,13 @@ export default function CustomerBookings() {
     }
     setCreatingBooking(true);
     try {
+      const categoryLabel = selectedWorker.category
+        ? selectedWorker.category.charAt(0).toUpperCase() + selectedWorker.category.slice(1).toLowerCase().replace(/_/g, ' ')
+        : 'Service';
       const payload = {
         workerId: selectedWorker.userId,
         serviceCategory: selectedWorker.category,
-        serviceName: selectedService ? selectedService.name : `General ${selectedWorker.category.charAt(0) + selectedWorker.category.slice(1).toLowerCase().replace(/_/g, ' ')}`,
+        serviceName: selectedService ? selectedService.name : `General ${categoryLabel}`,
         description: 'Direct booking from profile',
         scheduledAt: bookingDate.toISOString(),
         baseAmount: selectedService ? selectedService.basePrice : selectedWorker.hourlyRate,
@@ -770,6 +774,7 @@ export default function CustomerBookings() {
           initialNumToRender={6}
           maxToRenderPerBatch={10}
           windowSize={5}
+          keyboardShouldPersistTaps="handled"
         />
       ) : (
         renderEmptyState()
@@ -929,7 +934,7 @@ export default function CustomerBookings() {
                   const order = orderRes.data?.data;
                   if (!order?.orderId) throw new Error(t('Failed to initialize payment'));
 
-                  const { startCashfreePayment } = require('../../utils/cashfree');
+                  const { startCashfreePayment, isUserCancellation } = require('../../utils/cashfree');
                   const paymentResult = await startCashfreePayment(order.paymentSessionId, order.orderId);
 
                   if (paymentResult.status === 'SUCCESS') {
@@ -939,8 +944,13 @@ export default function CustomerBookings() {
                     });
                     fetchBookings();
                     setPayModal((prev) => ({ ...prev, isSuccess: true }));
+                  } else if (isUserCancellation(paymentResult)) {
+                    // Backing out of checkout is expected — close the sheet and
+                    // reassure instead of opening the failure modal.
+                    setPayModal((prev) => ({ ...prev, visible: false, isSuccess: false, isFailed: false }));
+                    showToast({ message: t('Payment cancelled'), type: 'info' });
                   } else {
-                    throw new Error(t('Payment cancelled'));
+                    throw new Error(t('Payment failed'));
                   }
                 } catch (e: any) {
                   const errorMsg = e?.response?.data?.error || e.message || t('Payment failed');
@@ -973,6 +983,10 @@ export default function CustomerBookings() {
       {/* Rating Modal */}
       <Modal visible={rateModal.visible} transparent animationType="slide" onRequestClose={() => setRateModal({ visible: false, bookingId: '', workerName: '' })}>
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' }}>
+          {/* KeyboardAvoidingView lifts the sheet above the keyboard so the review
+              field + Submit stay visible; inner KASV scrolls if space runs out. */}
+          <KeyboardAvoidingView behavior="padding" automaticOffset style={{ maxHeight: '85%' }}>
+          <KeyboardAwareScrollView keyboardShouldPersistTaps="handled" style={{ maxHeight: '100%' }} showsVerticalScrollIndicator={false}>
           <View style={{ backgroundColor: '#FFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 }}>
             <View style={{ width: 40, height: 4, backgroundColor: '#DDD', borderRadius: 2, alignSelf: 'center', marginBottom: 20 }} />
             <Text style={{ fontSize: 20, fontFamily: 'Inter_700Bold', color: '#0D0D0D', textAlign: 'center' }}>{t('Rate')} {rateModal.workerName}</Text>
@@ -1035,12 +1049,18 @@ export default function CustomerBookings() {
               <Text style={{ fontSize: 14, fontFamily: 'Inter_500Medium', color: '#6B6B6B' }}>{t('Skip')}</Text>
             </TouchableOpacity>
           </View>
+          </KeyboardAwareScrollView>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
 
       {/* ── Cancellation Modal ── */}
       <Modal visible={cancelModal.visible} transparent animationType="slide" onRequestClose={() => setCancelModal({ visible: false, booking: null })}>
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' }}>
+          {/* KeyboardAvoidingView lifts the sheet above the keyboard so the reason
+              field + Confirm stay visible; inner KASV scrolls if space runs out. */}
+          <KeyboardAvoidingView behavior="padding" automaticOffset style={{ maxHeight: '85%' }}>
+          <KeyboardAwareScrollView keyboardShouldPersistTaps="handled" style={{ maxHeight: '100%' }} showsVerticalScrollIndicator={false}>
           <View style={{ backgroundColor: '#FFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 }}>
             <View style={{ width: 40, height: 4, backgroundColor: '#DDD', borderRadius: 2, alignSelf: 'center', marginBottom: 20 }} />
             
@@ -1178,13 +1198,20 @@ export default function CustomerBookings() {
               </View>
             )}
           </View>
+          </KeyboardAwareScrollView>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
 
       {/* ── Create Booking Modal ── */}
       <Modal visible={bookModalVisible} transparent animationType="slide" onRequestClose={() => setBookModalVisible(false)}>
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
-          <View style={{ backgroundColor: '#FFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40, maxHeight: '80%' }}>
+          {/* KeyboardAvoidingView lifts the sheet above the keyboard so the inline
+              address form (BookingAddressPicker) stays visible while typing;
+              inner KASV scrolls if space runs out. */}
+          <KeyboardAvoidingView behavior="padding" automaticOffset style={{ maxHeight: '85%' }}>
+          <KeyboardAwareScrollView keyboardShouldPersistTaps="handled" style={{ maxHeight: '100%' }} showsVerticalScrollIndicator={false}>
+          <View style={{ backgroundColor: '#FFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40, maxHeight: '100%' }}>
             <View style={{ width: 40, height: 4, backgroundColor: '#DDD', borderRadius: 2, alignSelf: 'center', marginBottom: 20 }} />
             
             {selectedWorker && (
@@ -1310,6 +1337,8 @@ export default function CustomerBookings() {
               </>
             )}
           </View>
+          </KeyboardAwareScrollView>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
     </SafeAreaView>

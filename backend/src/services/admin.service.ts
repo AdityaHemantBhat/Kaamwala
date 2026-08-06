@@ -107,56 +107,98 @@ export const adminService = {
     if (status) where.status = status;
     return prisma.withdrawalRequest.findMany({
       where,
-      select: { id: true, amount: true, upiId: true, bankAccount: true, status: true, createdAt: true, workerProfile: { select: { id: true, user: { select: { name: true, phone: true } } } } },
+      select: {
+        id: true, amount: true, method: true, upiId: true, bankAccount: true, status: true, createdAt: true,
+        workerProfile: { select: { id: true, user: { select: { name: true, phone: true } } } },
+        customerProfile: { select: { id: true, user: { select: { name: true, phone: true } } } },
+      },
       orderBy: { createdAt: 'desc' },
       take: 30,
     });
   },
 
   async processWithdrawal(id: string, status: string, notes?: string) {
-    const withdrawal = await prisma.withdrawalRequest.findUnique({ 
+    const withdrawal = await prisma.withdrawalRequest.findUnique({
       where: { id },
-      include: { workerProfile: { include: { user: true } } }
+      include: {
+        workerProfile: { include: { user: true } },
+        customerProfile: { include: { user: true } },
+      },
     });
     if (!withdrawal) throw new Error('Withdrawal not found');
     if (withdrawal.status !== 'pending') throw new Error('Withdrawal already processed');
 
+    // A withdrawal belongs to exactly one wallet (worker or customer).
+    const isWorker = !!withdrawal.workerProfileId;
+    const owner = isWorker ? withdrawal.workerProfile : withdrawal.customerProfile;
+    if (!owner?.user) throw new Error('Withdrawal owner not found');
+    const ledgerKey = `withdraw:${withdrawal.id}`;
+
     return prisma.$transaction(async (tx) => {
       if (status === 'rejected') {
-        // Refund wallet
-        await tx.workerProfile.update({
-          where: { id: withdrawal.workerProfileId },
-          data: { walletBalance: { increment: withdrawal.amount } },
-        });
+        // Refund the wallet (worker or customer) — same transactional debit that
+        // created the withdrawal is reversed.
+        if (isWorker) {
+          await tx.workerProfile.update({
+            where: { id: withdrawal.workerProfileId! },
+            data: { walletBalance: { increment: withdrawal.amount } },
+          });
+        } else {
+          await tx.customerProfile.update({
+            where: { id: withdrawal.customerProfileId! },
+            data: { walletBalance: { increment: withdrawal.amount } },
+          });
+        }
         // Create refund transaction log
         await tx.transaction.create({
           data: {
-            userId: withdrawal.workerProfile.userId,
+            userId: owner.userId,
             type: 'WALLET_CREDIT',
             amount: withdrawal.amount,
             description: `Refund for rejected withdrawal`,
             status: 'completed',
+            idempotencyKey: `withdraw:refund:${withdrawal.id}`,
           }
+        });
+        // Close out the original pending debit so the ledger never shows an
+        // eternal pending WALLET_WITHDRAWAL.
+        await tx.transaction.updateMany({
+          where: { idempotencyKey: ledgerKey },
+          data: { status: 'failed' },
         });
       }
 
       if (status === 'approved') {
-        if (!withdrawal.upiId) throw new Error('Worker has no UPI ID for withdrawal');
-        
+        // The destination depends on the method: UPI needs a UPI id, BANK needs
+        // account + IFSC. (The old code threw "no UPI ID" even for BANK
+        // withdrawals, which could never be approved.)
+        const upiId = withdrawal.upiId;
+        if (withdrawal.method === 'UPI' && !upiId) throw new Error('UPI ID missing for UPI withdrawal');
+        if (withdrawal.method === 'BANK' && (!withdrawal.bankAccount || !withdrawal.ifscCode)) {
+          throw new Error('Bank details missing for bank withdrawal');
+        }
+        if (!upiId) throw new Error('UPI ID missing for withdrawal');
+
         // This will throw if the API fails, aborting the transaction.
-        // Uses the worker's REAL phone + a stable per-worker beneficiary id.
+        // Uses the owner's REAL phone + a stable per-user beneficiary id.
         const payoutResult = await payoutService.processPayout({
-          transferId: withdrawal.id,
+          transferId: withdrawal.id, // idempotent: retries reuse the withdrawal id
           amount: withdrawal.amount,
-          upiId: withdrawal.upiId,
-          name: withdrawal.workerProfile.user?.name || 'Worker Partner',
-          phone: withdrawal.workerProfile.user?.phone || undefined,
-          email: `${withdrawal.workerProfile.user?.phone || 'worker'}@kaamwala.app`,
-          beneficiaryKey: withdrawal.workerProfile.userId,
+          upiId,
+          name: owner.user.name || 'Worker Partner',
+          phone: owner.user.phone || undefined,
+          email: `${owner.user.phone || 'user'}@kaamwala.app`,
+          beneficiaryKey: owner.userId,
         });
-        
+
         // Log the successful transfer in notes if we got a reference
         notes = notes ? `${notes} | Ref: ${payoutResult.referenceId}` : `Payout Ref: ${payoutResult.referenceId}`;
+
+        // Close out the original pending debit as completed with the payout ref.
+        await tx.transaction.updateMany({
+          where: { idempotencyKey: ledgerKey },
+          data: { status: 'completed', reference: payoutResult.referenceId },
+        });
       }
 
       return tx.withdrawalRequest.update({

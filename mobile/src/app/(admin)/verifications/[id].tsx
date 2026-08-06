@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Modal, TextInput } from 'react-native';
 import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { BrutalInkLoader } from '../../../components/ui/BrutalInkLoader';
@@ -214,11 +215,13 @@ export default function AdminVerificationDetail() {
       {/* Modal for Reject / Resubmit */}
       <Modal visible={modalVisible} transparent animationType="slide">
         <View style={styles.modalOverlay}>
+          {/* KAV lifts the sheet above the keyboard so the note field stays visible. */}
+          <KeyboardAvoidingView behavior="padding" automaticOffset style={{ maxHeight: '85%' }}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>{actionType === 'REJECT' ? t('Reject Submission') : t('Request Resubmission')}</Text>
 
             <Text style={styles.label}>{t('Reason')}</Text>
-            <ScrollView style={{ maxHeight: 150, marginBottom: 16 }}>
+            <ScrollView style={{ maxHeight: 150, marginBottom: 16 }} keyboardShouldPersistTaps="handled">
               {REJECTION_REASONS.map(r => (
                 <TouchableOpacity key={r.value} style={[styles.reasonOption, rejectionReason === r.value && styles.reasonOptionSelected]} onPress={() => setRejectionReason(r.value)}>
                   <Text style={{ color: rejectionReason === r.value ? '#FFF' : '#333' }}>{r.label}</Text>
@@ -244,6 +247,7 @@ export default function AdminVerificationDetail() {
               </TouchableOpacity>
             </View>
           </View>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
     </SafeAreaView>

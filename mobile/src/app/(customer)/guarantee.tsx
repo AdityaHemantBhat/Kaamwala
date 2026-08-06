@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, Modal, TextInput, ActivityIndicator, RefreshControl } from 'react-native';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { Image } from 'expo-image';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -203,6 +204,9 @@ export default function GuaranteeScreen() {
       <Modal visible={!!claimBooking} transparent animationType="slide" onRequestClose={() => setClaimBooking(null)}>
         <View style={styles.modalOverlay}>
           <Pressable style={StyleSheet.absoluteFill} onPress={() => setClaimBooking(null)} />
+          {/* KeyboardAvoidingView lifts the card above the keyboard so the reason
+              field and Submit stay visible while typing (edge-to-edge safe). */}
+          <KeyboardAvoidingView behavior="padding" automaticOffset style={{ maxHeight: '85%' }}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>{t('Raise a claim')}</Text>
             {claimBooking && (
@@ -257,6 +261,7 @@ export default function GuaranteeScreen() {
               </Pressable>
             </View>
           </View>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
     </SafeAreaView>

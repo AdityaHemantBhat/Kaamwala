@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { View, Text, FlatList, TextInput, Pressable, StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
+import { View, Text, FlatList, TextInput, Pressable, StyleSheet, Platform, ActivityIndicator } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { socketService } from '../../api/socket';
 import { apiClient } from '../../api/client';
@@ -18,7 +19,7 @@ const TIPS = [
 
 // Memoized per-message row so appending one message doesn't re-render the whole
 // history (the chat list grows continuously during a conversation).
-const MessageRow = React.memo(({ item, userId }: { item: any; userId: string }) => {
+const MessageRow = React.memo(function MessageRow({ item, userId }: { item: any; userId: string }) {
   const t = useT();
   if (item.type === 'system') {
     return (
@@ -133,7 +134,7 @@ export default function ChatScreen() {
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior="padding"
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+        automaticOffset
       >
         {loading ? (
           <ActivityIndicator style={styles.center} color="#FF5C00" />

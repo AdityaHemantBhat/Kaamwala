@@ -1,11 +1,15 @@
 import { Router } from 'express';
-import { paymentController } from '../controllers/payment.controller';
+import { paymentController, paymentWebhook } from '../controllers/payment.controller';
 import { authenticate } from '../middleware/auth.middleware';
 import { requireMinVersion } from '../middleware/version.middleware';
 
 const router = Router();
 
 router.use(requireMinVersion());
+
+// Cashfree webhook — deliberately NOT authenticated: it is verified by its HMAC
+// signature inside the handler (fails closed without a valid signature).
+router.post('/webhook', paymentWebhook);
 
 router.post('/create-order', authenticate, paymentController.createOrder);
 router.post('/verify', authenticate, paymentController.verifyPayment);

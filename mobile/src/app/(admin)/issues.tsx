@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, Pressable, RefreshControl, StyleSheet, TextInput, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { BrutalInkLoader } from '../../components/ui/BrutalInkLoader';
@@ -183,6 +184,8 @@ export default function AdminIssues() {
       {/* Create modal */}
       <Modal visible={showCreate} transparent animationType="slide" onRequestClose={() => setShowCreate(false)}>
         <View style={styles.modalOverlay}>
+          {/* KAV keeps the three issue fields above the keyboard (centered card). */}
+          <KeyboardAvoidingView behavior="padding" automaticOffset style={{ maxHeight: '90%' }}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>{t('New Issue')}</Text>
             <TextInput style={styles.input} placeholder={t('Canonical ID (e.g. TAP_INSTALLATION)')} placeholderTextColor="#9AA0A6" value={newIssue.canonicalId} onChangeText={s => setNewIssue({ ...newIssue, canonicalId: s })} autoCapitalize="characters" />
@@ -193,6 +196,7 @@ export default function AdminIssues() {
               <Pressable style={styles.submitBtn} onPress={createIssue}><Text style={styles.submitText}>{t('Create')}</Text></Pressable>
             </View>
           </View>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
     </SafeAreaView>

@@ -111,10 +111,11 @@ export default function AdminVerifications() {
       </View>
 
       {/* List */}
-      <ScrollView 
+      <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={styles.scrollContent}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor="#FF5C00" />}
+        keyboardShouldPersistTaps="handled"
       >
         {data.length === 0 ? (
           <View style={styles.emptyState}>

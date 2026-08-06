@@ -91,7 +91,7 @@ export default function WorkerDashboard() {
     })();
   }, []);
 
-  const loadData = async () => {
+  async function loadData() {
     try {
       const [statsRes, jobsRes, bookingsRes] = await Promise.all([
         apiClient.get('/workers/stats').catch(() => ({ data: { data: {} } })),
@@ -117,7 +117,7 @@ export default function WorkerDashboard() {
       }
     } catch {}
     finally { setLoading(false); setRefreshing(false); }
-  };
+  }
 
   const totalEarned = stats?.totalEarned || 0;
   const completedJobs = stats?.completedJobs || 0;

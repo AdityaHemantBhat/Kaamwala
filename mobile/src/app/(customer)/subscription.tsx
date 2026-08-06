@@ -57,15 +57,25 @@ export default function SubscriptionScreen() {
       });
       const order = orderRes.data?.data;
       if (!order?.orderId || !order?.paymentSessionId) {
-        throw new Error(t('Failed to initialize payment'));
+        throw new Error('INIT_FAILED');
       }
 
       // 2. Launch the real Cashfree checkout (requires native SDK / development build).
-      const { startCashfreePayment } = require('../../utils/cashfree');
+      const { startCashfreePayment, isUserCancellation } = require('../../utils/cashfree');
       const paymentResult = await startCashfreePayment(order.paymentSessionId, order.orderId);
 
+      // Nothing is charged unless the SDK reports SUCCESS. Backing out of the
+      // checkout is expected (reassure); a real gateway failure is not (retry).
       if (paymentResult.status !== 'SUCCESS') {
-        throw new Error(t('Payment cancelled'));
+        const cancelled = isUserCancellation(paymentResult);
+        showToast({
+          title: cancelled ? t('Payment cancelled') : t('Payment failed'),
+          message: cancelled
+            ? t('No money was deducted. You can try again anytime.')
+            : t('Please try again or contact support.'),
+          type: cancelled ? 'info' : 'error',
+        });
+        return;
       }
 
       // 3. Verify the payment with backend — backend confirms order status with Cashfree.
@@ -76,17 +86,43 @@ export default function SubscriptionScreen() {
 
       if (verifyRes.data?.success) {
         setCurrent(selected);
-        showToast({ message: `${t('Subscribed to')} ${selected}!`, type: 'success' });
+        showToast({
+          title: t("You're all set!"),
+          message: t('Welcome to KaamWala Plus!'),
+          type: 'success',
+        });
       } else {
-        showToast({ message: t('Subscription failed. Please try again.'), type: 'error' });
+        showToast({
+          title: t('Payment failed'),
+          message: t('Please try again or contact support.'),
+          type: 'error',
+        });
       }
     } catch (e: any) {
-      if (e?.message?.includes('cancelled')) {
-        showToast({ message: t('Payment cancelled'), type: 'info' });
+      if (e?.message === 'INIT_FAILED') {
+        showToast({
+          title: t('Something went wrong'),
+          message: t('Please try again.'),
+          type: 'error',
+        });
+      } else if (e?.message?.includes('cancelled')) {
+        showToast({
+          title: t('Payment cancelled'),
+          message: t('No money was deducted. You can try again anytime.'),
+          type: 'info',
+        });
       } else if (e?.response?.data?.error) {
-        showToast({ message: e.response.data.error, type: 'error' });
+        showToast({
+          title: t('Payment failed'),
+          message: e.response.data.error,
+          type: 'error',
+        });
       } else {
-        showToast({ message: e?.message || t('Failed to subscribe. Please try again.'), type: 'error' });
+        showToast({
+          title: t('Something went wrong'),
+          message: e?.message || t('Please try again.'),
+          type: 'error',
+        });
       }
     } finally {
       setProcessing(false);

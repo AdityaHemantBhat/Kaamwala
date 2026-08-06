@@ -136,7 +136,7 @@ export default function LiveTracking() {
   useEffect(() => {
     if (!bookingId) return;
     let cancelled = false;
-    let pollInterval: NodeJS.Timeout | null = null;
+    let pollInterval: ReturnType<typeof setInterval> | null = null;
 
     loadTracking();
 
@@ -183,7 +183,7 @@ export default function LiveTracking() {
     };
   }, [bookingId, moveWorker, placeDestination]);
 
-  const loadTracking = async () => {
+  async function loadTracking() {
     try {
       // Check cache first - if valid, show cached location immediately while fetching fresh data
       const cached = getCachedLocation(bookingId);
@@ -227,7 +227,7 @@ export default function LiveTracking() {
     } finally {
       setLoading(false);
     }
-  };
+  }
 
   if (loading) {
     return (

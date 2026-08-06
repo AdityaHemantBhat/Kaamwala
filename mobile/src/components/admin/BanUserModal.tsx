@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, View, Text, TextInput, ScrollView, TouchableOpacity, Switch, ActivityIndicator, StyleSheet, Pressable } from 'react-native';
+import { Modal, View, Text, TextInput, TouchableOpacity, Switch, ActivityIndicator, StyleSheet, Pressable } from 'react-native';
+import { KeyboardAvoidingView, KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 export interface BanData {
@@ -61,8 +62,11 @@ export const BanUserModal: React.FC<BanUserModalProps> = ({
   return (
     <Modal visible={visible} transparent animationType="slide">
       <View style={styles.modalOverlay}>
+        {/* KAV lifts the sheet above the keyboard so the duration/reason fields
+            and action buttons stay visible (edge-to-edge safe on Android). */}
+        <KeyboardAvoidingView behavior="padding" automaticOffset style={{ maxHeight: '85%' }}>
         <View style={styles.modalContent}>
-          <ScrollView nestedScrollEnabled contentContainerStyle={styles.scrollContent}>
+          <KeyboardAwareScrollView nestedScrollEnabled contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
             <Text style={styles.modalTitle}>Ban User</Text>
 
             {/* Ban Type Selection */}
@@ -136,7 +140,7 @@ export const BanUserModal: React.FC<BanUserModalProps> = ({
                 thumbColor="#FFFFFF"
               />
             </View>
-          </ScrollView>
+          </KeyboardAwareScrollView>
 
           {/* Action Buttons */}
           <View style={styles.actionButtons}>
@@ -160,6 +164,7 @@ export const BanUserModal: React.FC<BanUserModalProps> = ({
             </TouchableOpacity>
           </View>
         </View>
+        </KeyboardAvoidingView>
       </View>
     </Modal>
   );

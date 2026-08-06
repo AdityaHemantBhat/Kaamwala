@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, Pressable, Alert,
-  KeyboardAvoidingView, Platform, TextInput
+  View, Text, StyleSheet, Pressable, Alert,
+  TextInput
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { KeyboardAvoidingView, KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { useRouter } from 'expo-router';
 import { apiClient } from '../../../api/client';
 import { useT } from '../../../utils/i18n';
@@ -119,11 +120,13 @@ export default function CreateJob() {
         <View style={{ width: 40 }} />
       </View>
 
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
+        <KeyboardAwareScrollView
+          style={styles.container}
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
+          bottomOffset={24}
+        >
           {/* Hero Icon */}
           <View style={styles.heroSection}>
             <View style={styles.heroRing}>
@@ -240,7 +243,7 @@ export default function CreateJob() {
           </Pressable>
 
           <View style={{ height: 40 }} />
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );

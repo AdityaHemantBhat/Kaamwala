@@ -21,25 +21,36 @@ export const supportController = {
         (custSub?.status === 'active' && (custSub.plan === 'PLUS' || custSub.plan === 'PRO')) ||
         (workerSub?.status === 'active' && (workerSub.plan === 'PRO' || workerSub.plan === 'ELITE'));
       const priority = parsed.priority === 'high' || paidSupport ? 'high' : (parsed.priority || 'medium');
-      const ticket = await prisma.supportTicket.create({
-        data: { userId: req.user!.userId, subject: parsed.subject, description: parsed.description, bookingId: parsed.bookingId || undefined, priority, status: 'open' },
-      });
-      await prisma.ticketMessage.create({ data: { ticketId: ticket.id, senderId: req.user!.userId, message: parsed.description, isSystemMessage: true } });
-      
-      const admins = await prisma.user.findMany({ where: { role: 'ADMIN' }, select: { id: true } });
+
+      // Ticket + first message are created atomically in ONE round-trip (the old
+      // two sequential writes made submit feel slow, and a crash between them
+      // left a ticket with no message). The admin lookup runs in parallel.
+      const [ticket, admins] = await Promise.all([
+        prisma.$transaction(async (tx) => {
+          const created = await tx.supportTicket.create({
+            data: { userId: req.user!.userId, subject: parsed.subject, description: parsed.description, bookingId: parsed.bookingId || undefined, priority, status: 'open' },
+          });
+          await tx.ticketMessage.create({ data: { ticketId: created.id, senderId: req.user!.userId, message: parsed.description, isSystemMessage: true } });
+          return created;
+        }),
+        prisma.user.findMany({ where: { role: 'ADMIN' }, select: { id: true } }),
+      ]);
+
       for (const a of admins) { try { emitToUser(a.id, 'new_ticket', { ticketId: ticket.id, subject: parsed.subject }); } catch {} }
-      
+
       emitToAdmins('admin_refresh', { type: 'ticket' });
-      
+
       sendResponse(res, 201, ticket, 'Ticket created');
     } catch (e: any) { sendError(res, 400, e.message || 'Failed'); }
   },
 
   getUserTickets: async (req: AuthRequest, res: Response) => {
     try {
+      // No per-ticket message include — the list screen renders subject/status/
+      // description/createdAt only. The old `messages: take: 1` ran an extra
+      // query per ticket (N+1) for data the UI never reads.
       const tickets = await prisma.supportTicket.findMany({
         where: { userId: req.user!.userId },
-        include: { messages: { orderBy: { createdAt: 'asc' }, take: 1 } },
         orderBy: { updatedAt: 'desc' },
       });
       sendResponse(res, 200, tickets);
@@ -92,14 +103,17 @@ export const supportController = {
         ).catch(() => {});
       } else {
         const admins = await prisma.user.findMany({ where: { role: 'ADMIN' }, select: { id: true } });
-        for (const a of admins) {
+        // Parallel fan-out — the old sequential `for...await` made a reply block
+        // for the SUM of every admin's Expo/FCM round-trip. allSettled keeps the
+        // response fast and never fails on a single dead token.
+        await Promise.allSettled(admins.map(async (a) => {
           try { emitToUser(a.id, 'ticket_reply', { ticketId: ticket.id, message: parsed.message }); } catch {}
           await notificationService.sendPushNotification(
             a.id, 'New Support Reply',
             `A user replied to ticket: ${parsed.message}`,
             'support_reply', { ticketId: ticket.id },
-          ).catch(() => {});
-        }
+          );
+        }));
 
         emitToAdmins('admin_refresh', { type: 'ticket' });
       }

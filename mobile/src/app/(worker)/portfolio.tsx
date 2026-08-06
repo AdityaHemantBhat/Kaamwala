@@ -24,13 +24,13 @@ export default function WorkerPortfolio() {
 
   useEffect(() => { loadPhotos(); }, []);
 
-  const loadPhotos = async () => {
+  async function loadPhotos() {
     try {
       const res = await apiClient.get('/workers/portfolio');
       setPhotos(res.data?.data || []);
     } catch (e) {  }
     finally { setLoading(false); }
-  };
+  }
 
   const uploadPhoto = async () => {
     try {

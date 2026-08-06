@@ -7,8 +7,12 @@
 import React, { useMemo } from 'react';
 import { View, Text, Pressable, StyleSheet, ViewStyle } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import Animated, { FadeIn } from 'react-native-reanimated';
+import Animated, { FadeIn, useAnimatedStyle, withTiming, Easing } from 'react-native-reanimated';
 import { SUBSCRIPTION_COLORS, SUBSCRIPTION_STYLES } from './subscriptionConstants';
+
+// Animated Pressable so border/background can be driven by withTiming below
+// (a plain Pressable would snap the highlight with no easing).
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 interface Plan {
   id: string;
@@ -42,20 +46,26 @@ export const SubscriptionPlanCard = React.memo(({
   index = 0,
   variant = 'customer',
 }: SubscriptionPlanCardProps) => {
-  // Memoize border color logic
-  const borderColor = useMemo(() => {
-    if (isActive) return SUBSCRIPTION_COLORS.primary;
-    if (isPro) return SUBSCRIPTION_COLORS.primary;
-    if (isElite) return SUBSCRIPTION_COLORS.elite;
-    return SUBSCRIPTION_COLORS.border;
-  }, [isActive, isPro, isElite]);
-
   // Memoize background color logic
   const backgroundColor = useMemo(() => {
     if (isActive || isSelected) return SUBSCRIPTION_COLORS.white;
     if (isPro || isElite) return SUBSCRIPTION_COLORS.white;
     return SUBSCRIPTION_COLORS.white;
   }, [isActive, isSelected, isPro, isElite]);
+
+  // Animated highlight for the customer card: border fades in/out with easing
+  // instead of snapping, so selecting a plan feels smooth.
+  const highlighted = isActive || isSelected;
+  const highlightStyle = useAnimatedStyle(() => ({
+    borderWidth: withTiming(highlighted ? 2 : 0, {
+      duration: 220,
+      easing: Easing.out(Easing.cubic),
+    }),
+    borderColor: withTiming(
+      highlighted ? SUBSCRIPTION_COLORS.primary : 'transparent',
+      { duration: 220, easing: Easing.out(Easing.cubic) },
+    ),
+  }), [highlighted]);
 
   // Memoize elevation/shadow
   const shadowStyle = useMemo(() => SUBSCRIPTION_STYLES.shadowMedium, []);
@@ -64,17 +74,9 @@ export const SubscriptionPlanCard = React.memo(({
   if (variant === 'customer') {
     return (
       <Animated.View entering={FadeIn.delay((index || 0) * 80).duration(400)}>
-        <Pressable
+        <AnimatedPressable
           onPress={onPress}
-          style={[
-            styles.cardBase,
-            shadowStyle,
-            {
-              borderWidth: isSelected && !isActive ? 2 : 0,
-              borderColor: isSelected && !isActive ? borderColor : 'transparent',
-              backgroundColor,
-            },
-          ]}>
+          style={[styles.cardBase, shadowStyle, highlightStyle, { backgroundColor }]}>
           {/* Popular badge */}
           {plan.popular && !isActive && (
             <View
@@ -99,7 +101,15 @@ export const SubscriptionPlanCard = React.memo(({
 
           {/* Header */}
           <View style={styles.header}>
-            <View>
+            <View style={{ flex: 1 }}>
+              {/* Selected indicator (not the current plan) — sits above the
+                  plan name on the left, never on top of the price label. */}
+              {isSelected && !isActive && (
+                <View style={styles.selectedBadge}>
+                  <MaterialCommunityIcons name="check" size={12} color={SUBSCRIPTION_COLORS.white} />
+                  <Text style={styles.selectedBadgeText}>SELECTED</Text>
+                </View>
+              )}
               <Text style={[styles.planName, { color: isActive ? plan.color : SUBSCRIPTION_COLORS.dark }]}>
                 {plan.name}
               </Text>
@@ -119,7 +129,7 @@ export const SubscriptionPlanCard = React.memo(({
               ))}
             </View>
           )}
-        </Pressable>
+        </AnimatedPressable>
       </Animated.View>
     );
   }
@@ -258,6 +268,26 @@ const styles = StyleSheet.create({
   activeText: {
     fontFamily: 'Inter_600SemiBold',
     fontSize: 11,
+  },
+
+  selectedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    alignSelf: 'flex-start',
+    backgroundColor: SUBSCRIPTION_COLORS.primary,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginBottom: 8,
+    elevation: 1,
+  },
+
+  selectedBadgeText: {
+    fontFamily: 'Inter_700Bold',
+    fontSize: 9,
+    letterSpacing: 0.5,
+    color: SUBSCRIPTION_COLORS.white,
   },
 
   eliteGlow: {

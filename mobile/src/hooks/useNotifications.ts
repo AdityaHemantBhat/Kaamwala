@@ -94,10 +94,16 @@ export function useNotifications() {
     apiClient.delete('/notifications').catch(() => {});
   }, []);
 
-  // Realtime: prepend new notifications (deduped by id).
+  // Realtime: prepend new notifications (deduped by id, falling back to a
+  // type+entity fingerprint for payloads the server sends without an id).
   useEffect(() => {
     const handler = (notif: any) => {
-      setItems((prev) => (prev.some((n) => n.id === notif.id) ? prev : [notif, ...prev]));
+      setItems((prev) => {
+        const key = (n: any) =>
+          n?.id ||
+          `${n?.type || ''}:${n?.data?.bookingId || n?.data?.requestId || n?.data?.ticketId || ''}`;
+        return prev.some((n) => key(n) === key(notif)) ? prev : [notif, ...prev];
+      });
     };
     socketService.on('new_notification', handler);
     return () => {

@@ -123,7 +123,6 @@ export default function WorkerNotifications() {
                   onPress={() => handleTap(n)}
                   style={({ pressed }) => [
                     styles.notifItem,
-                    !n.isRead && styles.notifUnread,
                     pressed && { opacity: 0.85 },
                   ]}
                 >
@@ -227,12 +226,6 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     borderLeftWidth: 0,
     borderLeftColor: 'transparent',
-  },
-  notifUnread: {
-    backgroundColor: '#FFFFFF',
-    borderLeftWidth: 4,
-    borderLeftColor: '#FF5C00',
-    paddingLeft: 12,
   },
   notifIconWrap: {
     width: 44,

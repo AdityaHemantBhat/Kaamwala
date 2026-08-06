@@ -85,7 +85,7 @@ export default function AdminWithdrawals() {
               </View>
               <View style={{ flex: 1, marginLeft: 12 }}>
                 <Text style={styles.amountText}>₹{w.amount}</Text>
-                <Text style={styles.dateText}>{new Date(w.createdAt || Date.now()).toLocaleDateString()}</Text>
+                <Text style={styles.dateText}>{w.createdAt ? new Date(w.createdAt).toLocaleDateString() : ''}</Text>
               </View>
               
               <View style={[styles.statusPill, { backgroundColor: w.status === 'pending' ? '#FEF7E0' : '#E6F4EA' }]}>
@@ -96,10 +96,10 @@ export default function AdminWithdrawals() {
             </View>
 
             <View style={styles.detailsBox}>
-              {w.workerProfile?.user?.name && (
+              {(w.workerProfile?.user?.name || w.customerProfile?.user?.name) && (
                 <View style={styles.detailRow}>
-                  <MaterialCommunityIcons name="account-hard-hat" size={16} color="#5F6368" />
-                  <Text style={styles.detailText}>{w.workerProfile.user.name}</Text>
+                  <MaterialCommunityIcons name={w.customerProfile ? 'account' : 'account-hard-hat'} size={16} color="#5F6368" />
+                  <Text style={styles.detailText}>{w.workerProfile?.user?.name || w.customerProfile?.user?.name}</Text>
                 </View>
               )}
               {w.upiId && (
@@ -124,7 +124,7 @@ export default function AdminWithdrawals() {
                 <Pressable onPress={() => {
                   Alert.alert(
                     t('Approve payout'),
-                    t(`${w.amount} will be paid automatically via Cashfree to the worker's ${w.upiId ? `UPI ID: ${w.upiId}` : `Bank Account: ${w.bankAccount}`}. Confirm?`),
+                    t(`${w.amount} will be paid automatically via Cashfree to ${w.upiId ? `UPI ID: ${w.upiId}` : `Bank Account: ${w.bankAccount}`}. Confirm?`),
                     [
                       { text: t('Cancel'), style: 'cancel' },
                       { text: t('Approve & Pay'), style: 'default', onPress: () => handleProcess(w.id, 'approved') }

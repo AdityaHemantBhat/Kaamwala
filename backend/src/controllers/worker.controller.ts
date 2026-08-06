@@ -91,13 +91,17 @@ export const workerController = {
       const [totalBookings, acceptedBookings] = counts;
       const acceptanceRate = totalBookings > 0 ? Math.round((acceptedBookings / totalBookings) * 100) : 0;
 
-      let avgResponseMin = 0;
+      let avgResponseSec = 0;
       if (recentAccepts.length > 0) {
+        // Response time = time between request creation and the worker's
+        // accept. Measured in seconds (not rounded minutes) so sub-minute
+        // responses — the norm in this request/quote model — don't collapse
+        // to "0m". Outliers (>2h) are excluded as noise.
         const diffs = recentAccepts
-          .map((b: any) => (b.acceptedAt!.getTime() - b.createdAt.getTime()) / 60000)
-          .filter((d: number) => d > 0 && d < 120);
+          .map((b: any) => (b.acceptedAt!.getTime() - b.createdAt.getTime()) / 1000)
+          .filter((d: number) => d > 0 && d < 7200);
         if (diffs.length > 0) {
-          avgResponseMin = Math.round(diffs.reduce((a: number, b: number) => a + b, 0) / diffs.length);
+          avgResponseSec = diffs.reduce((a: number, b: number) => a + b, 0) / diffs.length;
         }
       }
 
@@ -105,7 +109,7 @@ export const workerController = {
       const cityPercentile = (cityData as any)?.percentile || 5;
       const openRequestsCount = (openRequests as any) || 0;
 
-      sendResponse(res, 200, { ...workerProfile, acceptanceRate, responseTimeMinutes: avgResponseMin, cityRank, cityPercentile, openRequestsCount });
+      sendResponse(res, 200, { ...workerProfile, acceptanceRate, responseTimeMinutes: avgResponseSec > 0 ? Math.round(avgResponseSec) / 60 : 0, cityRank, cityPercentile, openRequestsCount });
     } catch (e: any) {
       sendError(res, 500, e.message);
     }

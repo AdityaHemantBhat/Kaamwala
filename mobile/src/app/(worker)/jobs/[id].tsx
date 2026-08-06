@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, Pressable, Alert,
-  KeyboardAvoidingView, Platform, ActivityIndicator, TextInput
+  View, Text, StyleSheet, Pressable, Alert,
+  ActivityIndicator, TextInput
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { KeyboardAvoidingView, KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { apiClient } from '../../../api/client';
 import { socketService } from '../../../api/socket';
@@ -194,11 +195,13 @@ export default function EditJob() {
         <View style={{ width: 40 }} />
       </View>
 
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
+        <KeyboardAwareScrollView
+          style={styles.container}
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
+          bottomOffset={24}
+        >
           {/* Status Indicator */}
           <View style={styles.statusBar}>
             <View style={[
@@ -336,7 +339,7 @@ export default function EditJob() {
           </Pressable>
 
           <View style={{ height: 40 }} />
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );

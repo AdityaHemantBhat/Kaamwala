@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, Modal, FlatList, ActivityIndicator, Switch } from 'react-native';
+import { KeyboardAvoidingView, KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { Image } from 'expo-image';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -82,21 +83,6 @@ export default function WorkerProfile() {
   const currentIsoCode = selectedState?.isoCode || indianStates.find(s => s.name === profile?.state)?.isoCode;
   const cities = useMemo(() => currentIsoCode ? City.getCitiesOfState('IN', currentIsoCode) : [], [currentIsoCode]);
 
-  useEffect(() => {
-    loadProfile();
-    loadServices();
-
-    const handleRefresh = (data: any) => {
-      if (data?.type === 'verification') {
-        // Trigger new requests (deduplication prevents concurrent duplicates)
-        loadProfile();
-        loadServices();
-      }
-    };
-    socketService.on('worker_refresh', handleRefresh);
-    return () => { socketService.off('worker_refresh', handleRefresh); };
-  }, [loadProfile, loadServices]);
-
   const loadProfile = useCallback(async () => {
     // Deduplicate: skip if request already in-flight
     if (loadingFlagsRef.current.profile) return;
@@ -167,6 +153,21 @@ export default function WorkerProfile() {
       }
     }
   }, []);
+
+  useEffect(() => {
+    loadProfile();
+    loadServices();
+
+    const handleRefresh = (data: any) => {
+      if (data?.type === 'verification') {
+        // Trigger new requests (deduplication prevents concurrent duplicates)
+        loadProfile();
+        loadServices();
+      }
+    };
+    socketService.on('worker_refresh', handleRefresh);
+    return () => { socketService.off('worker_refresh', handleRefresh); };
+  }, [loadProfile, loadServices]);
 
   const pickImage = async () => {
     try {
@@ -373,6 +374,9 @@ export default function WorkerProfile() {
       {/* State Picker Modal */}
       <Modal visible={pickingState} transparent animationType="slide" onRequestClose={() => setPickingState(false)}>
         <View style={styles.pickerOverlay}>
+          {/* KeyboardAvoidingView lifts the picker above the keyboard so the search
+              field stays visible while typing (edge-to-edge safe). */}
+          <KeyboardAvoidingView behavior="padding" automaticOffset style={{ maxHeight: '85%' }}>
           <View style={styles.pickerCard}>
             <View style={styles.pickerHeader}>
               <Text style={styles.pickerTitle}>{t('Select State')}</Text>
@@ -392,6 +396,7 @@ export default function WorkerProfile() {
               data={filteredStates}
               keyExtractor={(item) => item.isoCode}
               style={{ maxHeight: 400 }}
+              keyboardShouldPersistTaps="handled"
               renderItem={({ item }) => (
                 <Pressable style={styles.pickerItem} onPress={() => handleSelectState(item)}>
                   <Text style={styles.pickerItemText}>{item.name}</Text>
@@ -400,12 +405,16 @@ export default function WorkerProfile() {
               )}
             />
           </View>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
 
       {/* City Picker Modal */}
       <Modal visible={pickingCity} transparent animationType="slide" onRequestClose={() => setPickingCity(false)}>
         <View style={styles.pickerOverlay}>
+          {/* KeyboardAvoidingView lifts the picker above the keyboard so the search
+              field stays visible while typing (edge-to-edge safe). */}
+          <KeyboardAvoidingView behavior="padding" automaticOffset style={{ maxHeight: '85%' }}>
           <View style={styles.pickerCard}>
             <View style={styles.pickerHeader}>
               <Text style={styles.pickerTitle}>{t('Select City')}</Text>
@@ -434,12 +443,13 @@ export default function WorkerProfile() {
                 searchQuery.trim() && !exactCityMatch ? (
                   <Pressable style={[styles.pickerItem, { backgroundColor: '#FFF0E8' }]}
                     onPress={() => handleSelectCity(searchQuery.trim())}>
-                    <Text style={[styles.pickerItemText, { color: '#FF5C00' }]}>+ {t('Add')} "{searchQuery.trim()}"</Text>
+                    <Text style={[styles.pickerItemText, { color: '#FF5C00' }]}>+ {t('Add')} {'"'}{searchQuery.trim()}{'"'}</Text>
                   </Pressable>
                 ) : null
               }
             />
           </View>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
 
@@ -447,6 +457,11 @@ export default function WorkerProfile() {
       <Modal visible={!!editModal} transparent animationType="slide" onRequestClose={() => setEditModal(null)}>
         <View style={styles.modalOverlay}>
           <Pressable style={StyleSheet.absoluteFill} onPress={() => setEditModal(null)} />
+          {/* KeyboardAvoidingView lifts the card above the keyboard so the field +
+              Save stay visible; inner KASV scrolls when the category/unit lists
+              make the card taller than the space above the keyboard. */}
+          <KeyboardAvoidingView behavior="padding" automaticOffset style={{ maxHeight: '85%' }}>
+          <KeyboardAwareScrollView keyboardShouldPersistTaps="handled" style={{ maxHeight: '100%' }} showsVerticalScrollIndicator={false}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>{t('Edit')} {t(FIELD_LABELS[editModal?.field || ''] || '')}</Text>
             <View style={{ backgroundColor: '#FFFFFF', borderRadius: 12, elevation: 1, paddingHorizontal: 14, marginBottom: 16 }}>
@@ -529,6 +544,8 @@ export default function WorkerProfile() {
               </Pressable>
             </View>
           </View>
+          </KeyboardAwareScrollView>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
 
@@ -536,6 +553,10 @@ export default function WorkerProfile() {
       <Modal visible={!!serviceModal} transparent animationType="slide" onRequestClose={() => setServiceModal(null)}>
         <View style={styles.modalOverlay}>
           <Pressable style={StyleSheet.absoluteFill} onPress={() => setServiceModal(null)} />
+          {/* KeyboardAvoidingView lifts the card above the keyboard; inner KASV
+              scrolls so all fields + Save stay reachable when typing. */}
+          <KeyboardAvoidingView behavior="padding" automaticOffset style={{ maxHeight: '85%' }}>
+          <KeyboardAwareScrollView keyboardShouldPersistTaps="handled" style={{ maxHeight: '100%' }} showsVerticalScrollIndicator={false}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>{serviceModal?.mode === 'edit' ? t('Edit Service') : t('Add Service')}</Text>
 
@@ -594,6 +615,8 @@ export default function WorkerProfile() {
               </Pressable>
             </View>
           </View>
+          </KeyboardAwareScrollView>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
 
@@ -683,7 +706,11 @@ export default function WorkerProfile() {
             { v: profile?.rating?.toFixed(1) || '—', l: 'Rating' },
             { v: profile?.completedJobs || 0, l: 'Jobs Done' },
             { v: `${profile?.acceptanceRate || 0}%`, l: 'Acceptance' },
-            { v: `${profile?.responseTimeMinutes || 0}${t('m')}`, l: 'Response' },
+            { v: profile?.responseTimeMinutes > 0
+                ? (profile.responseTimeMinutes < 1
+                    ? `${Math.round(profile.responseTimeMinutes * 60)}${t('s')}`
+                    : `${Math.round(profile.responseTimeMinutes)}${t('m')}`)
+                : `0${t('m')}`, l: 'Response' },
           ].map((s) => (
             <View key={s.l} style={styles.statCard}>
               <Text style={{ fontFamily: 'Inter_700Bold', fontSize: 16, color: '#0D0D0D' }}>{s.v}</Text>

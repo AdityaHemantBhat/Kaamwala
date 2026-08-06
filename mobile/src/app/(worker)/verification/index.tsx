@@ -42,7 +42,7 @@ export default function WorkerVerificationWizard() {
     loadConfig();
   }, []);
 
-  const loadConfig = async () => {
+  async function loadConfig() {
     try {
       // Also check if there's an IN_PROGRESS or RESUBMISSION_REQUIRED draft
       const [cfgRes, currRes] = await Promise.all([
@@ -73,7 +73,7 @@ export default function WorkerVerificationWizard() {
     } finally {
       setLoading(false);
     }
-  };
+  }
 
   const handleStart = async (selectedProofType: string) => {
     setActionLoading(true);

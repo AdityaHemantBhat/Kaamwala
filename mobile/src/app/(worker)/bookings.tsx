@@ -3,6 +3,7 @@ import {
   View, Text, StyleSheet, ScrollView, Pressable, RefreshControl, ActivityIndicator,
   Modal, TextInput, Linking, Image
 } from 'react-native';
+import { KeyboardAvoidingView, KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -452,6 +453,9 @@ export default function WorkerBookings() {
       {/* OTP Modal */}
       <Modal visible={otpModal.visible} transparent animationType="fade" onRequestClose={() => { setOtpModal({ visible: false, bookingId: '' }); setOtpValue(''); setShowManualOtp(false); }}>
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 24 }}>
+          {/* KeyboardAvoidingView lifts the card above the keyboard so the manual
+              OTP field + Verify stay visible while typing (edge-to-edge safe). */}
+          <KeyboardAvoidingView behavior="padding" automaticOffset style={{ width: '100%', maxHeight: '85%' }}>
           <View style={{ backgroundColor: '#FFF', borderRadius: 20, padding: 24, width: '100%', alignItems: 'center' }}>
             <Text style={{ fontSize: 18, fontFamily: 'Inter_700Bold', color: '#0D0D0D', marginBottom: 8 }}>{t('Scan QR to Start')}</Text>
             <Text style={{ fontSize: 13, fontFamily: 'Inter_400Regular', color: '#666', marginBottom: 20, textAlign: 'center' }}>
@@ -541,12 +545,19 @@ export default function WorkerBookings() {
               </View>
             )}
           </View>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
 
       {/* Worker Cancel Modal */}
       <Modal visible={cancelModal.visible} transparent animationType="slide" onRequestClose={() => setCancelModal({ visible: false, booking: null })}>
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
+          {/* KeyboardAvoidingView lifts the sheet above the keyboard so the reason
+              field + actions stay visible. The sheet keeps its own internal
+              reason-list ScrollView, so no outer KASV (would fight the flex:1).
+              flex:1 gives the KAV a definite height so the sheet's minHeight:60%
+              and flex:1 reason list still resolve. */}
+          <KeyboardAvoidingView behavior="padding" automaticOffset style={{ flex: 1, justifyContent: 'flex-end', maxHeight: '90%' }}>
           <View style={{ backgroundColor: '#FFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, minHeight: '60%' }}>
             
             {cancelModal.booking?.cancelRequestStatus === 'PENDING_CUSTOMER' ? (
@@ -718,6 +729,7 @@ export default function WorkerBookings() {
               </>
             )}
           </View>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
 
@@ -725,6 +737,8 @@ export default function WorkerBookings() {
       <Modal visible={!!photoModal} transparent animationType="slide" onRequestClose={() => setPhotoModal(null)}>
         <View style={styles.modalOverlay}>
           <Pressable style={StyleSheet.absoluteFill} onPress={() => setPhotoModal(null)} />
+          {/* KAV lifts the caption field above the keyboard (edge-to-edge safe on Android). */}
+          <KeyboardAvoidingView behavior="padding" automaticOffset style={{ maxHeight: '85%' }}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>{t('Add Job Photos')}</Text>
             {photoModal && (
@@ -779,6 +793,7 @@ export default function WorkerBookings() {
               </Pressable>
             </View>
           </View>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
 
@@ -786,6 +801,8 @@ export default function WorkerBookings() {
       <Modal visible={!!changeModal} transparent animationType="slide" onRequestClose={() => setChangeModal(null)}>
         <View style={styles.modalOverlay}>
           <Pressable style={StyleSheet.absoluteFill} onPress={() => setChangeModal(null)} />
+          {/* KAV lifts the three scope-change fields above the keyboard. */}
+          <KeyboardAvoidingView behavior="padding" automaticOffset style={{ maxHeight: '85%' }}>
           <View style={styles.modalCard}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
               <MaterialCommunityIcons name="file-document-edit-outline" size={22} color="#B06000" />
@@ -849,6 +866,7 @@ export default function WorkerBookings() {
               </Pressable>
             </View>
           </View>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
     </SafeAreaView>

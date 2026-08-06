@@ -28,10 +28,11 @@ export const workerEarningsController = {
         select: { createdAt: true, acceptedAt: true },
         take: 10, orderBy: { acceptedAt: 'desc' },
       });
-      let avgResponseMin = 0;
+      let avgResponseSec = 0;
       if (responseTimeResult.length > 0) {
-        const diffs = responseTimeResult.map(b => (b.acceptedAt!.getTime() - b.createdAt.getTime()) / 60000).filter(d => d > 0 && d < 120);
-        if (diffs.length > 0) avgResponseMin = Math.round(diffs.reduce((a, b) => a + b, 0) / diffs.length);
+        // Seconds (not rounded minutes) so sub-minute responses aren't shown as 0.
+        const diffs = responseTimeResult.map(b => (b.acceptedAt!.getTime() - b.createdAt.getTime()) / 1000).filter(d => d > 0 && d < 7200);
+        if (diffs.length > 0) avgResponseSec = diffs.reduce((a, b) => a + b, 0) / diffs.length;
       }
 
       const [todayEarnings, weekEarnings, monthEarnings, pendingWithdrawals, recentPayouts] = await Promise.all([
@@ -45,7 +46,7 @@ export const workerEarningsController = {
       sendResponse(res, 200, {
         walletBalance: wp.walletBalance, totalEarned: wp.totalEarned, thisMonthEarned: wp.thisMonthEarned,
         completedJobs: wp.completedJobs, rating: wp.rating, acceptanceRate,
-        responseTimeMinutes: avgResponseMin || wp.responseTimeMinutes,
+        responseTimeMinutes: avgResponseSec > 0 ? Math.round(avgResponseSec) / 60 : wp.responseTimeMinutes,
         todayEarnings: todayEarnings._sum.workerEarnings || 0, weekEarnings: weekEarnings._sum.workerEarnings || 0,
         monthEarnings: monthEarnings._sum.workerEarnings || 0, pendingWithdrawal: pendingWithdrawals._sum.amount || 0,
         withdrawals: recentPayouts, upiId: wp.upiId,

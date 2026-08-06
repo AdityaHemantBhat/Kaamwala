@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Pressable, Animated, Dimensions, ScrollView, KeyboardAvoidingView, Platform, TextInput, Modal } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Animated, Dimensions, Platform, TextInput, Modal } from 'react-native';
+import { KeyboardAvoidingView, KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -336,7 +337,7 @@ export default function UrgentBookingScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
         <View style={styles.header}>
           <Pressable style={styles.backBtn} onPress={() => router.back()}>
             <MaterialCommunityIcons name="arrow-left" size={24} color="#202124" />
@@ -347,7 +348,8 @@ export default function UrgentBookingScreen() {
           </View>
         </View>
 
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <KeyboardAwareScrollView style={{ flex: 1 }} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled" bottomOffset={16}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>{t('Select service')}</Text>
           </View>
@@ -422,7 +424,7 @@ export default function UrgentBookingScreen() {
             </View>
           )}
           <View style={{ height: 40 }} />
-        </ScrollView>
+        </KeyboardAwareScrollView>
 
         <View style={styles.footer}>
           <Pressable style={[styles.startBtn, (!selectedCategory || !issueReason) && styles.startBtnDisabled]} onPress={handlePreview} disabled={!selectedCategory || !issueReason}>

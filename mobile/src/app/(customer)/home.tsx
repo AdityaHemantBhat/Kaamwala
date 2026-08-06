@@ -77,13 +77,13 @@ export default function CustomerHome() {
     })();
   }, []);
 
-  const fetchData = async (cityOverride?: string) => {
+  async function fetchData(cityOverride?: string) {
     try {
       const res = await apiClient.get('/home', { params: { city: cityOverride || city } });
       setData(res.data?.data);
     } catch {}
     finally { setLoading(false); setRefreshing(false); }
-  };
+  }
 
   const h = new Date().getHours();
   const greeting = h < 12 ? t('Good morning') : h < 17 ? t('Good afternoon') : t('Good evening');
@@ -268,19 +268,24 @@ export default function CustomerHome() {
           <View style={styles.sectionOuter}>
             <Text style={styles.sectionTitle}>{t('Suggested for you')}</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingRight: 24 }}>
-              {data.suggestions.map((w: any, i: number) => (
+              {/* Filter out entries with no resolvable profile id so we never
+                  navigate to /worker/undefined (which would crash/404). */}
+              {data.suggestions.filter((w: any) => w && w.workerId).map((w: any, i: number) => {
+                const matchPct = Number.isFinite(w.score) ? Math.round((w.score / 135) * 100) : 0;
+                return (
                 <Pressable key={w.workerId} style={styles.suggestionCard} onPress={() => router.push(`/(customer)/worker/${w.workerId}`)}
                   accessibilityRole="button" accessibilityLabel={`View ${w.user?.name || t('worker')}'s profile`}>
                   <View style={styles.scoreBadge}>
                     <MaterialCommunityIcons name="check-circle-outline" size={12} color="#B28200" />
-                    <Text style={styles.scoreText}>{Math.round((w.score / 135) * 100)}%</Text>
+                    <Text style={styles.scoreText}>{matchPct}%</Text>
                   </View>
                   <Text style={styles.workerName}>{w.user?.name || t('Top Match')}</Text>
                   {w.reasons?.slice(0, 2).map((r: string, ri: number) => (
                     <Text key={ri} style={styles.reasonTag}>{r}</Text>
                   ))}
                 </Pressable>
-              ))}
+                );
+              })}
             </ScrollView>
           </View>
         )}
@@ -290,13 +295,15 @@ export default function CustomerHome() {
           <View style={styles.sectionOuter}>
             <Text style={styles.sectionTitle}>{t('Top rated')}</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingRight: 24 }}>
-              {data.topWorkers.map((w: any, i: number) => (
+              {data.topWorkers.filter((w: any) => w && w.userId).map((w: any, i: number) => {
+                const ratingText = typeof w.rating === 'number' ? w.rating.toFixed(1) : Number(w.rating) > 0 ? Number(w.rating).toFixed(1) : '—';
+                return (
                 <Pressable key={w.userId} style={styles.topWorkerCard} onPress={() => router.push(`/(customer)/worker/${w.userId}`)}
-                  accessibilityRole="button" accessibilityLabel={`View ${w.name || t('top worker')}'s profile`}>
+                  accessibilityRole="button" accessibilityLabel={`View ${w.user?.name || w.name || t('top worker')}'s profile`}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                       <MaterialCommunityIcons name="star" size={14} color="#FFD700" />
-                      <Text style={styles.topWorkerRating}>{w.rating?.toFixed(1)}</Text>
+                      <Text style={styles.topWorkerRating}>{ratingText}</Text>
                     </View>
                     {isFeaturedActive(w.isFeatured, w.featuredUntil) && (
                       <FeaturedBadge featuredUntil={w.featuredUntil} isFeatured={w.isFeatured} compact />
@@ -307,7 +314,8 @@ export default function CustomerHome() {
                   <Text style={styles.topWorkerCategory}>{t(w.category ? w.category.split('_').map((word: string) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ') : 'General')}</Text>
                   <Text style={styles.topWorkerRate}>₹{w.hourlyRate}/{t('hr')}</Text>
                 </Pressable>
-              ))}
+                );
+              })}
             </ScrollView>
           </View>
         )}

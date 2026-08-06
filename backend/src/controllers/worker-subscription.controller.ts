@@ -8,6 +8,9 @@ import { notificationService } from '../services/notification.service';
 import { emitToAdmins } from '../services/socket.service';
 import { WORKER_PLANS, WorkerPlanKey } from '../services/workerPlans.service';
 
+// Cost of a 7-day profile boost, purchased through the Cashfree gateway.
+const BOOST_PRICE = 99;
+
 export const workerSubscriptionController = {
   getPlans: (_req: any, res: Response) => {
     sendResponse(res, 200, [
@@ -60,14 +63,36 @@ export const workerSubscriptionController = {
         throw new Error('Payment amount does not match plan price');
       }
       const orderCustomerId = order.customer_details?.customer_id;
-      if (orderCustomerId && orderCustomerId !== req.user!.userId) {
+      if (orderCustomerId !== req.user!.userId) {
         throw new Error('Order does not belong to this account');
       }
 
       const periodEnd = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
       const details = WORKER_PLANS[plan as WorkerPlanKey];
 
-      // Idempotency: activating the same plan twice must not double-charge the ledger.
+      // Idempotency anchor FIRST: the unique `idempotencyKey` ledger row is the
+      // single source of truth. A duplicate/concurrent verify of the same
+      // orderId hits P2002 here and short-circuits BEFORE any side effect — so
+      // the plan is never re-upserted (which would double the billing period),
+      // the badges never re-stamped, and no second notification fires. The old
+      // check-then-insert raced: two parallel verifies both saw "not existing"
+      // and both created a ledger row (one died on P2002 → 500).
+      const key = `wrksub:${req.user!.userId}:${orderId}`;
+      try {
+        await prisma.transaction.create({
+          data: {
+            userId: req.user!.userId, type: 'SUBSCRIPTION_PAYMENT', amount: details.price,
+            description: `${details.label} - Worker Plan (1 month)`, status: 'completed',
+            reference: orderId, idempotencyKey: key,
+          },
+        });
+      } catch (e: any) {
+        if (e?.code === 'P2002') {
+          return sendResponse(res, 200, { plan }, 'Plan already active');
+        }
+        throw e;
+      }
+
       await prisma.workerSubscription.upsert({
         where: { userId: req.user!.userId },
         update: { plan: plan as any, status: 'active', currentPeriodStart: new Date(), currentPeriodEnd: periodEnd },
@@ -86,18 +111,6 @@ export const workerSubscriptionController = {
         await prisma.workerProfile.update({
           where: { userId: req.user!.userId },
           data: { isFeatured: true, featuredUntil: periodEnd },
-        });
-      }
-
-      const key = `wrksub:${req.user!.userId}:${orderId}`;
-      const existing = await prisma.transaction.findFirst({ where: { idempotencyKey: key } });
-      if (!existing) {
-        await prisma.transaction.create({
-          data: {
-            userId: req.user!.userId, type: 'SUBSCRIPTION_PAYMENT', amount: details.price,
-            description: `${details.label} - Worker Plan (1 month)`, status: 'completed',
-            reference: orderId, idempotencyKey: key,
-          },
         });
       }
 
@@ -122,26 +135,74 @@ export const workerSubscriptionController = {
     } catch (e: any) { sendError(res, 500, e.message); }
   },
 
-  boostProfile: async (req: AuthRequest, res: Response) => {
+  createBoostOrder: async (req: AuthRequest, res: Response) => {
     try {
+      const order = await paymentService.createOrder(`wrk_boost_${req.user!.userId}`, BOOST_PRICE, req.user!.userId);
+      sendResponse(res, 201, {
+        orderId: order.orderId,
+        paymentSessionId: order.paymentSessionId,
+        amount: order.amount,
+        currency: 'INR',
+      });
+    } catch (e: any) { sendError(res, 500, e.message); }
+  },
+
+  verifyBoost: async (req: AuthRequest, res: Response) => {
+    try {
+      const { orderId } = req.body;
+      if (!orderId) return sendError(res, 400, 'Missing payment details');
+
+      // Verify the order with Cashfree — payment must be completed and match
+      // the boost price, and the order must belong to this worker.
+      const order = await paymentService.fetchOrder(orderId);
+      if (order.order_status !== 'PAID') throw new Error('Payment not completed');
+      if (!moneyEqual(Number(order.order_amount), BOOST_PRICE)) {
+        throw new Error('Payment amount does not match boost price');
+      }
+      const orderCustomerId = order.customer_details?.customer_id;
+      if (orderCustomerId !== req.user!.userId) {
+        throw new Error('Order does not belong to this account');
+      }
+
+      // Idempotency anchor FIRST (same pattern as plan verify): the unique
+      // `idempotencyKey` ledger row short-circuits duplicate/concurrent verifies
+      // of the same orderId before ANY side effect — no double badge, no double
+      // notification. A retry of the same order simply reports "already applied".
+      const key = `boost:${req.user!.userId}:${orderId}`;
+      try {
+        await prisma.transaction.create({
+          data: {
+            userId: req.user!.userId, type: 'SUBSCRIPTION_PAYMENT', amount: BOOST_PRICE,
+            description: 'Featured boost - 7 days', status: 'completed',
+            reference: orderId, idempotencyKey: key,
+          },
+        });
+      } catch (e: any) {
+        if (e?.code === 'P2002') {
+          return sendResponse(res, 200, null, 'Boost already applied');
+        }
+        throw e;
+      }
+
+      // "Extend": if the current featured badge is still live, stack 7 more days
+      // onto it; otherwise start fresh from now.
       const wp = await prisma.workerProfile.findUnique({ where: { userId: req.user!.userId } });
-      if (!wp) return sendError(res, 404, 'Worker profile not found');
-      if (wp.walletBalance < 99) return sendError(res, 400, 'Insufficient balance. Need ₹99');
-
+      const base = wp?.featuredUntil && wp.featuredUntil.getTime() > Date.now()
+        ? wp.featuredUntil
+        : new Date();
+      const featuredUntil = new Date(base.getTime() + 7 * 86400000);
       await prisma.workerProfile.update({
-        where: { id: wp.id },
-        data: { isFeatured: true, featuredUntil: new Date(Date.now() + 7 * 86400000) },
+        where: { userId: req.user!.userId },
+        data: { isFeatured: true, featuredUntil },
       });
 
-      await prisma.workerProfile.update({
-        where: { id: wp.id },
-        data: { walletBalance: { decrement: 99 } },
-      });
+      await notificationService.sendPushNotification(
+        req.user!.userId, 'Profile Boosted',
+        'Your profile is now featured for 7 days!',
+        'subscription', { featuredUntil: featuredUntil.toISOString() },
+      );
 
-      await prisma.transaction.create({
-        data: { userId: req.user!.userId, type: 'WALLET_WITHDRAWAL', amount: -99, description: 'Featured boost - 7 days', status: 'completed', idempotencyKey: `boost:${req.user!.userId}:${Date.now()}` },
-      });
-
+      emitToAdmins('admin_refresh', { type: 'subscription_update' });
       sendResponse(res, 200, null, 'Profile boosted! Featured for 7 days.');
     } catch (e: any) { sendError(res, 500, e.message); }
   },

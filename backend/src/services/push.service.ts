@@ -48,6 +48,11 @@ export async function sendPushToToken(token: string, payload: PushPayload): Prom
 }
 
 async function sendViaExpo(token: string, payload: PushPayload): Promise<PushSendResult> {
+  // Hard timeout so a hung Expo endpoint can never stall a request that fans out
+  // to many recipients (e.g. admin ticket replies). Default Node fetch has none.
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10_000);
+
   try {
     const body: Record<string, any> = {
       to: token,
@@ -71,6 +76,7 @@ async function sendViaExpo(token: string, payload: PushPayload): Promise<PushSen
       method: 'POST',
       headers,
       body: JSON.stringify([body]),
+      signal: controller.signal,
     });
 
     if (!res.ok) {
@@ -93,6 +99,8 @@ async function sendViaExpo(token: string, payload: PushPayload): Promise<PushSen
   } catch (e) {
     logger.error('Expo push request failed', e);
     return { ok: false, invalid: false };
+  } finally {
+    clearTimeout(timeout);
   }
 }
 

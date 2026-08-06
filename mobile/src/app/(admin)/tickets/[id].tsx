@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, TextInput, Pressable, ScrollView, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, TextInput, Pressable, ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -124,15 +125,16 @@ export default function AdminTicketDetail() {
         </Pressable>
       </View>
 
-      <KeyboardAvoidingView 
-        style={{ flex: 1 }} 
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
         behavior="padding"
-        keyboardVerticalOffset={0}
+        automaticOffset
       >
-        <ScrollView 
+        <ScrollView
           ref={scrollRef}
-          style={styles.chatArea} 
+          style={styles.chatArea}
           contentContainerStyle={styles.chatContent}
+          keyboardShouldPersistTaps="handled"
           onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}
         >
           {ticket.status === 'resolved' && (

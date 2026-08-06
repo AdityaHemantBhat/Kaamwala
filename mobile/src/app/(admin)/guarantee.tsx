@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, Modal, TextInput, ActivityIndicator, RefreshControl } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { useRouter } from 'expo-router';
 import { apiClient } from '../../api/client';
 import { useToast } from '../../components/ui/ToastProvider';
@@ -131,6 +132,8 @@ export default function AdminGuarantee() {
       <Modal visible={!!activeClaim} transparent animationType="slide" onRequestClose={() => setActiveClaim(null)}>
         <View style={styles.modalOverlay}>
           <Pressable style={StyleSheet.absoluteFill} onPress={() => setActiveClaim(null)} />
+          {/* KAV keeps the resolution note above the keyboard. */}
+          <KeyboardAvoidingView behavior="padding" automaticOffset style={{ maxHeight: '85%' }}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>{t('Review claim')}</Text>
             {activeClaim && (
@@ -160,6 +163,7 @@ export default function AdminGuarantee() {
               </Pressable>
             </View>
           </View>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
     </SafeAreaView>

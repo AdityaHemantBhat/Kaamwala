@@ -239,6 +239,7 @@ model CustomerProfile {
   pendingCancellationFee Float        @default(0)
   createdAt     DateTime             @default(now())
   requests      CustomerJobRequest[]
+  withdrawals   WithdrawalRequest[]
   updatedAt     DateTime             @updatedAt
 }
 
@@ -720,6 +721,9 @@ model Booking {
   @@index([scheduledAt])
   @@index([createdAt])
   @@index([warrantyExpiresAt])
+  // Webhook reconciliation: findFirst({ where: { paymentOrderId } }) on every
+  // booking-payment webhook — without this the lookup scans the whole table.
+  @@index([paymentOrderId])
 }
 
 model Negotiation {
@@ -1040,8 +1044,13 @@ model Transaction {
 
 model WithdrawalRequest {
   id              String        @id @default(cuid())
-  workerProfileId String
-  workerProfile   WorkerProfile @relation(fields: [workerProfileId], references: [id])
+  // A withdrawal is always issued against exactly ONE wallet. Worker withdrawals
+  // set workerProfileId (earnings screen); customer wallet withdrawals set
+  // customerProfileId (customer payments screen). Exactly one is non-null.
+  workerProfileId String?
+  workerProfile   WorkerProfile? @relation(fields: [workerProfileId], references: [id])
+  customerProfileId String?
+  customerProfile CustomerProfile? @relation(fields: [customerProfileId], references: [id])
   method          String        @default("UPI") // UPI, BANK
   amount          Float
   upiId           String?
@@ -1059,6 +1068,8 @@ model WithdrawalRequest {
   // Hot path: earnings dashboard aggregates pending withdrawals per worker and
   // admins list by workerProfileId.
   @@index([workerProfileId])
+  // Same hot path for customer wallet withdrawals (admin approvals).
+  @@index([customerProfileId])
 }
 
 // ─── Dynamic Pricing ─────────────────────────────────────

@@ -68,7 +68,14 @@ function setupExpressApp(): express.Express {
   app.use(cors({ origin: ALLOWED_ORIGINS }));
   // 'dev' format is terminal-noise; use the standard Apache format in production.
   app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
-  app.use(express.json({ limit: '5mb' }));
+  app.use(express.json({
+    limit: '5mb',
+    // Capture the RAW request body verbatim so the Cashfree webhook can verify
+    // its HMAC signature over the exact bytes Cashfree signed.
+    verify: (req: any, _res, buf) => {
+      req.rawBody = buf.toString('utf8');
+    },
+  }));
   app.use(express.urlencoded({ limit: '5mb', extended: true }));
   app.use(sanitizeStrings);
   app.use(ipBanMiddleware);

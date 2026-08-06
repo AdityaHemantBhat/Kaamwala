@@ -489,12 +489,15 @@ export const bookingService = {
         const walletBefore = workerBefore?.walletBalance ?? 0;
         const walletAfter = walletBefore + booking.workerEarnings;
 
-        // ATOMIC: Update wallet with explicit set (not increment) to prevent race conditions
+        // ATOMIC: update the wallet with an INCREMENT, never a read-then-write.
+        // walletBefore is read as a consistent snapshot for the audit trail, but
+        // the write must be an increment so a concurrent credit (another payout,
+        // a top-up) can never be clobbered by a stale explicit set.
         // Req 4.1, 4.2: Update wallet balance
         await tx.workerProfile.update({
           where: { userId: booking.workerId },
           data: {
-            walletBalance: walletAfter, // explicit set, not increment
+            walletBalance: { increment: booking.workerEarnings },
             totalEarned: { increment: booking.workerEarnings },
             completedJobs: { increment: 1 },
           },
@@ -524,7 +527,11 @@ export const bookingService = {
           },
         });
 
-        // ATOMIC: Create commission ledger entry for audit
+        // ATOMIC: Create commission ledger entry for audit. No `.catch` — a
+        // failure here must roll back the WHOLE transaction, so a payout can
+        // never commit without its commission audit row (the old catch created
+        // "false confidence" inside the Serializable tx). The unique
+        // idempotencyKey prevents duplicate rows on retry.
         // Req 4.3: Show commission separately from worker earnings
         if (booking.platformFee > 0) {
           await tx.transaction.create({
@@ -541,9 +548,6 @@ export const bookingService = {
                 commissionAmount: booking.platformFee,
               },
             },
-          }).catch((err) => {
-            logger.warn('Failed to create commission ledger entry', { bookingId, error: err });
-            // Don't fail the entire transaction if commission ledger fails
           });
         }
 

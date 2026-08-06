@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, Modal, ActivityIndicator, RefreshControl } from 'react-native';
+import { KeyboardAvoidingView, KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeInUp } from 'react-native-reanimated';
@@ -34,8 +35,6 @@ export default function WorkerEarnings() {
   const [addAmount, setAddAmount] = useState('');
   const [addingMoney, setAddingMoney] = useState(false);
 
-  useEffect(() => { loadData(); }, []);
-
   const loadData = useCallback(async () => {
     // Ledger is independent of the earnings summary — never block the summary
     // on it, and never let a ledger failure blank the whole screen.
@@ -51,6 +50,8 @@ export default function WorkerEarnings() {
     setTxnsLoading(false);
     setRefreshing(false);
   }, []);
+
+  useEffect(() => { loadData(); }, []);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
@@ -96,10 +97,20 @@ export default function WorkerEarnings() {
       if (!order?.orderId) throw new Error('Failed to initialize payment');
 
       // 2. Launch the Cashfree checkout (native SDK, or mock alert in Expo Go).
-      const { startCashfreePayment } = require('../../utils/cashfree');
+      const { startCashfreePayment, isUserCancellation } = require('../../utils/cashfree');
       const paymentResult = await startCashfreePayment(order.paymentSessionId, order.orderId);
 
-      if (paymentResult.status !== 'SUCCESS') throw new Error('Payment cancelled');
+      // Backing out of checkout is expected (nothing charged); a real gateway
+      // failure is not. Don't report a cancellation as "Failed to add money".
+      if (paymentResult.status !== 'SUCCESS') {
+        showToast({
+          message: isUserCancellation(paymentResult)
+            ? t('Payment cancelled')
+            : t('Payment failed'),
+          type: isUserCancellation(paymentResult) ? 'info' : 'error',
+        });
+        return;
+      }
 
       // 3. Only now credit the wallet — backend verifies the order with Cashfree.
       await apiClient.post('/payments/verify-wallet-topup', {
@@ -214,7 +225,11 @@ export default function WorkerEarnings() {
               <Text style={styles.perfLabel}>{t('Acceptance')}</Text>
             </View>
             <View style={styles.perfItem}>
-              <Text style={styles.perfValue}>{data?.responseTimeMinutes || 0}{t('min')}</Text>
+              <Text style={styles.perfValue}>{data?.responseTimeMinutes > 0
+                ? (data.responseTimeMinutes < 1
+                    ? `${Math.round(data.responseTimeMinutes * 60)}${t('s')}`
+                    : `${Math.round(data.responseTimeMinutes)}${t('min')}`)
+                : `0${t('min')}`}</Text>
               <Text style={styles.perfLabel}>{t('Response')}</Text>
             </View>
           </View>
@@ -303,6 +318,11 @@ export default function WorkerEarnings() {
       <Modal visible={showWithdraw} transparent animationType="slide" onRequestClose={() => setShowWithdraw(false)}>
         <View style={styles.modalOverlay}>
           <Pressable style={StyleSheet.absoluteFill} onPress={() => setShowWithdraw(false)} />
+          {/* Withdraw stacks up to 6 inputs (BANK branch), so lift the sheet above
+              the keyboard AND let its content scroll to keep every field + the
+              submit button reachable. */}
+          <KeyboardAvoidingView behavior="padding" automaticOffset style={{ maxHeight: '85%' }}>
+          <KeyboardAwareScrollView keyboardShouldPersistTaps="handled" style={{ maxHeight: '100%' }} showsVerticalScrollIndicator={false}>
           <Animated.View entering={FadeInUp.duration(300)} style={styles.modalCard}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
               <MaterialCommunityIcons name="lightning-bolt" size={24} color="#FF9800" />
@@ -380,6 +400,8 @@ export default function WorkerEarnings() {
               </Pressable>
             </View>
           </Animated.View>
+          </KeyboardAwareScrollView>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
 
@@ -387,6 +409,9 @@ export default function WorkerEarnings() {
       <Modal visible={showAddMoney} transparent animationType="slide" onRequestClose={() => setShowAddMoney(false)}>
         <View style={styles.modalOverlay}>
           <Pressable style={StyleSheet.absoluteFill} onPress={() => setShowAddMoney(false)} />
+          {/* KeyboardAvoidingView lifts the sheet above the keyboard so the amount
+              field + Proceed stay visible while typing (edge-to-edge safe). */}
+          <KeyboardAvoidingView behavior="padding" automaticOffset style={{ maxHeight: '85%' }}>
           <Animated.View entering={FadeInUp.duration(300)} style={styles.modalCard}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
               <MaterialCommunityIcons name="wallet-plus" size={24} color="#4CAF50" />
@@ -432,6 +457,7 @@ export default function WorkerEarnings() {
               </Pressable>
             </View>
           </Animated.View>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
     </SafeAreaView>

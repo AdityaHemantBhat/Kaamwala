@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, Pressable, StyleSheet, Alert, ActivityIndicator, TextInput, Modal, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useT } from '../../../utils/i18n';
@@ -66,6 +67,11 @@ export default function DisputeDetailScreen() {
     }
   };
 
+  // `raisedByRole` is CUSTOMER or WORKER — the resolve action belongs to the
+  // ADMIN viewing this screen, so gate on the viewer's role, not the raiser's.
+  const viewerRole = useAuthStore((s) => s.user?.role);
+  const isAdmin = ['ADMIN', 'SUPER_ADMIN'].includes(viewerRole || '');
+
   if (loading || !dispute) {
     return (
       <SafeAreaView style={styles.safeArea} edges={['top']}>
@@ -75,10 +81,6 @@ export default function DisputeDetailScreen() {
   }
 
   const ss = STATUS_STYLE[dispute.decision] || STATUS_STYLE.PENDING;
-  // `raisedByRole` is CUSTOMER or WORKER — the resolve action belongs to the
-  // ADMIN viewing this screen, so gate on the viewer's role, not the raiser's.
-  const viewerRole = useAuthStore((s) => s.user?.role);
-  const isAdmin = ['ADMIN', 'SUPER_ADMIN'].includes(viewerRole || '');
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
@@ -266,6 +268,9 @@ export default function DisputeDetailScreen() {
       {/* Resolution Modal */}
       <Modal visible={modalVisible} transparent animationType="slide">
         <View style={styles.modalOverlay}>
+          {/* KAV lifts the sheet above the keyboard so the refund amount + notes
+              stay reachable; the sheet caps at 80% so content scrolls internally. */}
+          <KeyboardAvoidingView behavior="padding" automaticOffset style={{ maxHeight: '85%' }}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>{t('Resolve Dispute')}</Text>
 
@@ -323,6 +328,7 @@ export default function DisputeDetailScreen() {
               </Pressable>
             </View>
           </View>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
 

@@ -14,8 +14,8 @@ async function generateAndroidIcons() {
   // Android Adaptive Icon specifications
   // For xxxhdpi (4.0x): 432x432 pixels canvas
   const CANVAS_SIZE = 432;
-  const FOREGROUND_SIZE = 216; // 50% of canvas with padding
-  const PADDING = (CANVAS_SIZE - FOREGROUND_SIZE) / 2; // 108px padding on each side
+  const FOREGROUND_SIZE = 252; // 90px padding on each side (432 - 180 = 252)
+  const PADDING = (CANVAS_SIZE - FOREGROUND_SIZE) / 2; // 90px padding
 
   try {
     // Read the main icon

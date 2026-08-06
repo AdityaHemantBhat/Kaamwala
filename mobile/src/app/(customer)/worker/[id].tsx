@@ -5,24 +5,37 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { FeaturedBadge, isFeaturedActive } from '../../../components/ui/FeaturedBadge';
 import { SkeletonWorkerDetail } from '../../../components/ui/Skeleton';
-import { useRouter, useLocalParams } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useBookingStore } from '../../../store/booking.store';
 import { useT } from '../../../utils/i18n';
 import { useWorkerProfile } from '../../../hooks/useWorkerProfile';
 
 export default function WorkerDetailScreen() {
   const t = useT();
-  const { id } = useLocalParams<{ id: string }>();
+  const params = useLocalSearchParams<{ id: string | string[] }>();
   const router = useRouter();
+  // The route param can be a string[], a missing value, or an `undefined` URL
+  // segment. Normalize to a single id and bail early on anything unusable so we
+  // never fetch `/workers/undefined` or render with a partial worker.
+  const id = Array.isArray(params.id) ? params.id[0] : params.id;
   const { data: worker, isLoading, error } = useWorkerProfile(id);
   const [selectedService, setSelectedService] = useState<any>(null);
 
-  // Set default service when worker data loads
+  // Set default service once when worker data first arrives. Keyed on the
+  // worker identity, not the reference, so a background refetch (new object,
+  // same worker) can't silently reset the user's in-progress selection.
   useEffect(() => {
-    if (worker?.services?.length) {
+    if (worker?.services?.length && !selectedService) {
       setSelectedService(worker.services[0]);
     }
-  }, [worker]);
+  }, [worker, selectedService]);
+
+  // Navigating to a different worker must never carry over the previous
+  // worker's service selection — otherwise the old "selected" service stays
+  // highlighted on the new worker until the user taps one.
+  useEffect(() => {
+    setSelectedService(null);
+  }, [id]);
 
   // First load: show skeleton
   if (isLoading && !worker) {
@@ -57,6 +70,9 @@ export default function WorkerDetailScreen() {
   const avatarUrl = worker.user?.avatarUrl;
   const photos = worker.photos || [];
   const featured = isFeaturedActive(worker.isFeatured, worker.featuredUntil);
+  // rating may arrive as a string or null from some endpoints — coerce safely.
+  const ratingText =
+    typeof worker.rating === 'number' ? worker.rating.toFixed(1) : Number(worker.rating) > 0 ? Number(worker.rating).toFixed(1) : '---';
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#F5F0E8' }} edges={['top']}>
@@ -78,7 +94,7 @@ export default function WorkerDetailScreen() {
             />
           ) : (
             <View style={{ width: 88, height: 88, borderRadius: 44, backgroundColor: '#0D0D0D', justifyContent: 'center', alignItems: 'center', marginBottom: 12 }}>
-              <Text style={{ fontFamily: 'Inter_700Bold', fontSize: 32, color: '#F5F0E8' }}>{name[0].toUpperCase()}</Text>
+              <Text style={{ fontFamily: 'Inter_700Bold', fontSize: 32, color: '#F5F0E8' }}>{(name || 'W')[0].toUpperCase()}</Text>
             </View>
           )}
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8 }}>
@@ -92,7 +108,7 @@ export default function WorkerDetailScreen() {
         {/* Stats */}
         <View style={{ flexDirection: 'row', gap: 10, marginBottom: 24 }}>
           {[
-            { v: worker.rating?.toFixed(1) || '---', l: t('Rating') },
+            { v: ratingText, l: t('Rating') },
             { v: worker.completedJobs || 0, l: t('Jobs Done') },
             { v: `₹${worker.hourlyRate || 0}`, l: t('/hr') },
           ].map((s, i) => (

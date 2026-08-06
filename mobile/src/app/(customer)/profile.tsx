@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, Pressable, Modal, TextInput, RefreshControl, ActivityIndicator, StyleSheet } from 'react-native';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -29,13 +30,13 @@ export default function CustomerProfile() {
 
   useEffect(() => { loadData(); }, []);
 
-  const loadData = async () => {
+  async function loadData() {
     try {
       const h = await apiClient.get('/home').catch(() => ({ data: { data: null } }));
       setProfile(h.data?.data);
     } catch {}
     finally { setLoading(false); setRefreshing(false); }
-  };
+  }
 
   const tier = profile?.loyaltyTier || 'BRONZE';
   const pts = profile?.loyaltyPoints || 0;
@@ -181,6 +182,9 @@ export default function CustomerProfile() {
       <Modal visible={showEdit} transparent animationType="slide" onRequestClose={() => setShowEdit(false)}>
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' }}>
           <Pressable style={StyleSheet.absoluteFill} onPress={() => setShowEdit(false)} />
+          {/* KeyboardAvoidingView lifts the sheet so the name field + Save stay
+              visible while typing (edge-to-edge safe). */}
+          <KeyboardAvoidingView behavior="padding" automaticOffset style={{ maxHeight: '85%' }}>
           <View style={{ backgroundColor: '#FFFFFF', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, paddingBottom: 40 }}>
             <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: '#E0E0E0', alignSelf: 'center', marginBottom: 20 }} />
             <Text style={{ fontFamily: 'Inter_700Bold', fontSize: 20, color: '#0D0D0D', marginBottom: 24 }}>{t('Edit Profile')}</Text>
@@ -223,6 +227,7 @@ export default function CustomerProfile() {
               </Pressable>
             </View>
           </View>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
     </SafeAreaView>

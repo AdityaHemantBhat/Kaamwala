@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, ScrollView, Pressable, Modal, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, Pressable, Modal, StyleSheet, ActivityIndicator, TextInput } from 'react-native';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Animated, { FadeInUp } from 'react-native-reanimated';
@@ -55,13 +56,13 @@ export default function AddressesScreen() {
 
   useEffect(() => { loadAddresses(); }, []);
 
-  const loadAddresses = async () => {
+  async function loadAddresses() {
     try {
       const res = await apiClient.get('/addresses');
       setAddresses(res.data?.data || []);
     } catch (e) {  }
     finally { setLoading(false); setRefreshing(false); }
-  };
+  }
 
   const useCurrentLocation = async () => {
     setLocating(true);
@@ -247,7 +248,10 @@ export default function AddressesScreen() {
       <Modal visible={isModalVisible} transparent animationType="slide" onRequestClose={resetModal}>
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' }}>
           <Pressable style={StyleSheet.absoluteFill} onPress={resetModal} />
-          <Animated.View entering={FadeInUp.duration(300)} style={{ maxHeight: '80%' }}>
+          {/* KeyboardAvoidingView lifts the sheet above the soft keyboard so the
+              focused field and the Save button stay visible while typing. */}
+          <KeyboardAvoidingView behavior="padding" automaticOffset style={{ maxHeight: '80%' }}>
+          <Animated.View entering={FadeInUp.duration(300)} style={{ maxHeight: '100%' }}>
             <View style={{ backgroundColor: '#FFFFFF', borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, paddingBottom: 40, maxHeight: '100%', elevation: 10, shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.15, shadowRadius: 12 }}>
               <View style={{ width: 40, height: 4, backgroundColor: '#E0E0E0', alignSelf: 'center', marginBottom: 20, borderRadius: 2 }} />
 
@@ -390,6 +394,7 @@ export default function AddressesScreen() {
               )}
             </View>
           </Animated.View>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
     </SafeAreaView>

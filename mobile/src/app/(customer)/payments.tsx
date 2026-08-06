@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, StyleSheet, ScrollView, Pressable, Modal, Linking, Platform, ActivityIndicator } from 'react-native';
+import { KeyboardAvoidingView, KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { Colors } from '../../constants/colors';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -52,7 +53,7 @@ export default function PaymentsScreen() {
 
   useEffect(() => { loadData(); }, []);
 
-  const loadData = async () => {
+  async function loadData() {
     try {
       const [homeRes, txnRes] = await Promise.all([
         apiClient.get('/home').catch(() => ({ data: { data: null } })),
@@ -63,7 +64,7 @@ export default function PaymentsScreen() {
       setTransactions(txnRes.data?.data || []);
     } catch {}
     finally { setLoading(false); }
-  };
+  }
 
   const handleAddMoney = async () => {
     const amt = parseMoneyInput(addAmount);
@@ -76,10 +77,20 @@ export default function PaymentsScreen() {
       if (!order?.orderId) throw new Error(t('Failed to initialize payment'));
 
       // 2. Launch the Cashfree checkout (native SDK, or mock alert in Expo Go).
-      const { startCashfreePayment } = require('../../utils/cashfree');
+      const { startCashfreePayment, isUserCancellation } = require('../../utils/cashfree');
       const paymentResult = await startCashfreePayment(order.paymentSessionId, order.orderId);
 
-      if (paymentResult.status !== 'SUCCESS') throw new Error(t('Payment cancelled'));
+      // Backing out of checkout is expected (nothing charged); a real gateway
+      // failure is not. Don't report a cancellation as "Payment failed".
+      if (paymentResult.status !== 'SUCCESS') {
+        showToast({
+          message: isUserCancellation(paymentResult)
+            ? t('Payment cancelled')
+            : t('Payment failed'),
+          type: isUserCancellation(paymentResult) ? 'info' : 'error',
+        });
+        return;
+      }
 
       // 3. Only now credit the wallet — backend verifies the order with Cashfree.
       await apiClient.post('/payments/verify-wallet-topup', {
@@ -230,6 +241,9 @@ export default function PaymentsScreen() {
       <Modal visible={showAddModal} transparent animationType="slide" onRequestClose={() => setShowAddModal(false)}>
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' }}>
           <Pressable style={StyleSheet.absoluteFill} onPress={() => setShowAddModal(false)} />
+          {/* KeyboardAvoidingView lifts the sheet above the keyboard so the amount
+              field and Add button stay visible while typing (edge-to-edge safe). */}
+          <KeyboardAvoidingView behavior="padding" automaticOffset style={{ maxHeight: '85%' }}>
           <View style={{ backgroundColor: '#FFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40, gap: 16 }}>
             <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: '#E0E0E0', alignSelf: 'center', marginBottom: 4 }} />
             <Text style={{ fontFamily: 'Inter_700Bold', fontSize: 20, color: '#0D0D0D', textAlign: 'center' }}>{t('Add Money')}</Text>
@@ -252,6 +266,7 @@ export default function PaymentsScreen() {
               {processing ? <ActivityIndicator size="small" color="#FFF" /> : <Text style={{ fontFamily: 'Inter_700Bold', fontSize: 16, color: '#FFF' }}>{t('Add')} {formatMoneyWithSymbol(parseMoneyInput(addAmount))}</Text>}
             </Pressable>
           </View>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
 
@@ -259,6 +274,11 @@ export default function PaymentsScreen() {
       <Modal visible={showWithdrawModal} transparent animationType="slide" onRequestClose={() => setShowWithdrawModal(false)}>
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' }}>
           <Pressable style={StyleSheet.absoluteFill} onPress={() => setShowWithdrawModal(false)} />
+          {/* Withdraw stacks up to 6 inputs (BANK branch), so lift the sheet above
+              the keyboard AND let its content scroll to keep every field + the
+              Withdraw button reachable. */}
+          <KeyboardAvoidingView behavior="padding" automaticOffset style={{ maxHeight: '85%' }}>
+          <KeyboardAwareScrollView keyboardShouldPersistTaps="handled" style={{ maxHeight: '100%' }} showsVerticalScrollIndicator={false}>
           <View style={{ backgroundColor: '#FFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40, gap: 16 }}>
             <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: '#E0E0E0', alignSelf: 'center', marginBottom: 4 }} />
             <Text style={{ fontFamily: 'Inter_700Bold', fontSize: 20, color: '#0D0D0D', textAlign: 'center' }}>{t('Withdraw Funds')}</Text>
@@ -316,6 +336,8 @@ export default function PaymentsScreen() {
               {processing ? <ActivityIndicator size="small" color="#FFF" /> : <Text style={{ fontFamily: 'Inter_700Bold', fontSize: 16, color: '#FFF' }}>{t('Withdraw')}</Text>}
             </Pressable>
           </View>
+          </KeyboardAwareScrollView>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
     </SafeAreaView>
