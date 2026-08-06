@@ -162,6 +162,7 @@ export const urgentController = {
         latitude: address.latitude,
         longitude: address.longitude,
         urgent: true,
+        limit: 20, // Cap at 20 to prevent overload + limit race conditions
       });
 
       // Link the uploaded image to the urgent request
@@ -175,7 +176,15 @@ export const urgentController = {
           where: { id: urgentRequest.id },
           data: { status: 'CANCELLED' },
         });
-        analyticsService.track('urgent_no_eligible_workers', { userId: customerId, role: 'CUSTOMER', category, issueId: resolvedIssueId || undefined, zone: address.city || undefined, ip: req.ip || req.socket.remoteAddress, payload: { requestId: urgentRequest.id } });
+        logger.warn('No eligible workers found for urgent request', { 
+          customerId, 
+          category, 
+          city: address.city,
+          radius: 'variable',
+          verificationRequired: true,
+          urgentEligibilityRequired: true,
+        });
+        analyticsService.track('urgent_no_eligible_workers', { userId: customerId, role: 'CUSTOMER', category, issueId: resolvedIssueId || undefined, zone: address.city || undefined, ip: req.ip || req.socket.remoteAddress, payload: { requestId: urgentRequest.id, reason: 'NO_VERIFIED_URGENT_WORKERS' } });
         return sendError(res, 409, 'NO_ELIGIBLE_WORKERS|No verified workers currently available for this urgent request.');
       }
 
@@ -303,20 +312,23 @@ export const urgentController = {
       // Offer versioning : if client saw a stale offer, reject before accepting.
       const preReq = await prisma.urgentRequest.findUnique({ where: { id: requestId } });
       if (!preReq || preReq.status !== 'SEARCHING') {
+        logger.info('Urgent request no longer searching', { requestId, status: preReq?.status, workerId });
         return sendError(res, 400, 'This request has already been accepted or expired.');
       }
       if (offerVersion !== undefined && offerVersion !== preReq.offerVersion) {
+        logger.warn('Offer version mismatch', { requestId, clientVersion: offerVersion, serverVersion: preReq.offerVersion, workerId });
         return sendError(res, 409, 'Offer has changed. Please refresh before accepting.');
       }
 
-      // Atomic lock — only ONE worker can win
+      // Atomic lock — only ONE worker can win. This is the critical race condition fix.
       const updatedReq = await prisma.urgentRequest.updateMany({
         where: { id: requestId, status: 'SEARCHING' },
         data: { status: 'ACCEPTED' }
       });
 
       if (updatedReq.count === 0) {
-        // Observability : a race-condition rejection — someone else won.
+        // Observability : a race-condition rejection — someone else won first.
+        logger.warn('Accept urgent race condition lost', { requestId, workerId, category: preReq?.category });
         analyticsService.track('matching_failed', { userId: workerId, role: 'WORKER', category: preReq?.category, payload: { requestId, reason: 'accept_race_lost' } });
         return sendError(res, 400, 'This request has already been accepted or expired.');
       }

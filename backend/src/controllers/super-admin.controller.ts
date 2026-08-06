@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { Response } from 'express';
 import { prisma } from '../config/prisma';
 import { sendResponse, sendError } from '../utils/response';
@@ -144,14 +145,21 @@ export const superAdminController = {
       const where: any = role === 'ALL' ? {} : { role };
       const users = await prisma.user.findMany({ where, select: { id: true, role: true, fcmToken: true }, take: 2000 });
 
-      // Store in database for notification history
+      // Stable id so clients can deduplicate the one-time broadcast popup across
+      // the socket event, the active-broadcast poll, and the notification push.
+      const broadcastId = randomUUID();
+
+      // Store in database for notification history. Marked DELIVERED at creation
+      // because a broadcast is delivered by the in-app popup (best-effort push is
+      // fire-and-forget below) — it must never enter the PENDING push-retry sweep,
+      // which would otherwise re-push recipients and grind on tokenless users.
       await prisma.notification.createMany({
-        data: users.map(u => ({ userId: u.id, title: cleanTitle, body: cleanBody, type: 'broadcast', data: { targetRole: role } })),
+        data: users.map(u => ({ userId: u.id, title: cleanTitle, body: cleanBody, type: 'broadcast', data: { targetRole: role, broadcastId }, status: 'DELIVERED' })),
       });
 
       // Device push to every recipient with a token — fire-and-forget so a slow
       // token never blocks the broadcast response.
-      const pushData = { targetRole: role };
+      const pushData = { targetRole: role, broadcastId };
       for (const u of users) {
         if (!u.fcmToken) continue;
         sendPushToToken(u.fcmToken, { title: cleanTitle, body: cleanBody, channelId: 'promo', data: { type: 'broadcast', ...pushData } })
@@ -174,15 +182,15 @@ export const superAdminController = {
       // Send real-time socket events. The payload carries targetRole + expiry so
       // clients render from the server's contract (single source of truth), not a
       // client-side guess — and so a client can defensively re-check its audience.
-      const payload = { title: cleanTitle, body: cleanBody, targetRole: role, expiresInHours: expiresIn, timestamp };
+      const payload = { id: broadcastId, title: cleanTitle, body: cleanBody, targetRole: role, expiresInHours: expiresIn, timestamp };
       if (role === 'ALL') {
         await emitBroadcast('broadcast_notification', payload);
       } else {
         await emitToRole(role as 'WORKER' | 'CUSTOMER' | 'ADMIN', 'broadcast_notification', payload);
       }
 
-      // Store active broadcast in Redis for dashboard marquee display (expires based on param)
-      const activeBroadcast = { title: cleanTitle, body: cleanBody, targetRole: role, createdAt: timestamp, expiresAt: timestamp + expiresIn * 60 * 60 * 1000 };
+      // Store active broadcast in Redis for the one-time popup on app open (expires based on param)
+      const activeBroadcast = { id: broadcastId, title: cleanTitle, body: cleanBody, targetRole: role, createdAt: timestamp, expiresAt: timestamp + expiresIn * 60 * 60 * 1000 };
       // Best-effort: the marquee cache is optional. A Redis outage (or missing
       // auth) must not fail an already-delivered broadcast — mirror the app's
       // graceful-degradation pattern used elsewhere for Redis writes.

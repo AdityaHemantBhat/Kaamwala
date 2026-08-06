@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import { prisma } from '../config/prisma';
 import { sendResponse, sendError } from '../utils/response';
+import { pushDeliveryService } from '../services/push-delivery.service';
 import { AuthRequest } from '../middleware/auth.middleware';
 
 const DEFAULT_LIMIT = 30;
@@ -111,5 +112,34 @@ export const notificationController = {
     } catch (e: any) {
       sendError(res, 500, e.message);
     }
-  }
+  },
+
+  /**
+   * Mark a notification as delivered (device received it, user saw it, or opened app).
+   * This prevents the backend from retrying sending a push that's already reached the user.
+   * Called by mobile app when:
+   * - Push received in foreground
+   * - User taps the push notification
+   * - App launched from push tap (cold start)
+   */
+  markDelivered: async (req: AuthRequest, res: Response) => {
+    try {
+      const { id } = req.params;
+      
+      // Verify ownership (user can only mark their own notifications)
+      const notification = await prisma.notification.findUnique({
+        where: { id },
+        select: { userId: true },
+      });
+      if (!notification) return sendError(res, 404, 'Notification not found');
+      if (notification.userId !== req.user!.userId) {
+        return sendError(res, 403, 'Not authorized');
+      }
+
+      await pushDeliveryService.markDelivered(id, 'user_event');
+      sendResponse(res, 200, null, 'Notification marked as delivered');
+    } catch (e: any) {
+      sendError(res, 500, e.message);
+    }
+  },
 };

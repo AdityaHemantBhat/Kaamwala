@@ -31,6 +31,7 @@ import { errorHandler } from './middleware/error.middleware';
 import apiRoutes from './routes';
 
 import { initSocket, registerSocketListeners } from './services/socket.service';
+import { schedulePushRetryWorker, stopPushRetryWorker } from './workers/push-retry.worker';
 import { ALLOWED_ORIGINS } from './config/cors';
 import { StartupProfiler } from './utils/startup-profiler';
 import { SubscriptionExpiryScheduler } from './services/subscription-expiry-scheduler';
@@ -155,6 +156,9 @@ async function main() {
     const jobsScheduler = new ScheduledJobsScheduler();
     jobsScheduler.start();
 
+    // Schedule push notification retry worker (every 30s)
+    schedulePushRetryWorker(30_000);
+
     // Lazy-load Redis in background (non-blocking, fallback available)
     connectRedisLazy();
 
@@ -196,6 +200,13 @@ async function main() {
 
     // Stop accepting new connections
     server.close(async () => {
+      try {
+        logger.info('[Shutdown] Stopping push notification retry worker');
+        stopPushRetryWorker();
+      } catch (err) {
+        logger.warn('[Shutdown] Push worker stop error:', err);
+      }
+
       try {
         logger.info('[Shutdown] Closing Socket.IO connections');
         io.close();

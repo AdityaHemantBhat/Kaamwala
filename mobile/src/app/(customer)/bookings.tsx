@@ -936,7 +936,6 @@ export default function CustomerBookings() {
                     await apiClient.post('/payments/verify', {
                       bookingId: payModal.booking.id,
                       orderId: order.orderId,
-                      isMock: paymentResult.isMock
                     });
                     fetchBookings();
                     setPayModal((prev) => ({ ...prev, isSuccess: true }));

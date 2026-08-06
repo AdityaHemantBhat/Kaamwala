@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, Modal, FlatList, ActivityIndicator, Switch } from 'react-native';
 import { Image } from 'expo-image';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -13,6 +13,7 @@ import { deleteUploadedImage } from '../../api/media';
 import * as ImagePicker from 'expo-image-picker';
 import { State, City } from 'country-state-city';
 import { socketService } from '../../api/socket';
+import { FormInput } from '../../components/ui/FormInput';
 
 export default function WorkerProfile() {
   const router = useRouter();
@@ -23,6 +24,21 @@ export default function WorkerProfile() {
   const [profile, setProfile] = useState<any>(null);
   const [editModal, setEditModal] = useState<{ field: string; value: string } | null>(null);
 
+  // Abort controllers for request deduplication and cleanup
+  const profileAbortRef = useRef<AbortController | null>(null);
+  const servicesAbortRef = useRef<AbortController | null>(null);
+  const isMountedRef = useRef(true);
+  const loadingFlagsRef = useRef({ profile: false, services: false });
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+      profileAbortRef.current?.abort();
+      servicesAbortRef.current?.abort();
+    };
+  }, []);
+
   // City/State picker state
   const [pickingState, setPickingState] = useState(false);
   const [pickingCity, setPickingCity] = useState(false);
@@ -30,7 +46,25 @@ export default function WorkerProfile() {
   const [selectedCity, setSelectedCity] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState('');
 
-  const [saving, setSaving] = useState(false);
+  const [imageError, setImageError] = useState(false);
+  const [imageLoading, setImageLoading] = useState(false);
+
+  // Memoize avatar source to prevent unnecessary reloads
+  const avatarSource = useMemo(() => 
+    user?.photoUrl && !imageError ? { uri: user.photoUrl } : null,
+    [user?.photoUrl, imageError]
+  );
+
+  // Prefetch avatar image when URL changes to ensure it's cached
+  useEffect(() => {
+    if (user?.photoUrl && user.photoUrl !== '') {
+      Image.prefetch(user.photoUrl).catch(e => 
+        console.warn('[WorkerProfile] Failed to prefetch avatar:', e)
+      );
+      // Reset error state when URL changes so we retry loading
+      setImageError(false);
+    }
+  }, [user?.photoUrl]);
 
   // ── Services management state ──
   const [services, setServices] = useState<any[]>([]);
@@ -42,6 +76,7 @@ export default function WorkerProfile() {
   const [svcActive, setSvcActive] = useState(true);
   const [savingService, setSavingService] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   const indianStates = useMemo(() => State.getStatesOfCountry('IN'), []);
   const currentIsoCode = selectedState?.isoCode || indianStates.find(s => s.name === profile?.state)?.isoCode;
@@ -53,27 +88,85 @@ export default function WorkerProfile() {
 
     const handleRefresh = (data: any) => {
       if (data?.type === 'verification') {
+        // Trigger new requests (deduplication prevents concurrent duplicates)
         loadProfile();
+        loadServices();
       }
     };
     socketService.on('worker_refresh', handleRefresh);
     return () => { socketService.off('worker_refresh', handleRefresh); };
+  }, [loadProfile, loadServices]);
+
+  const loadProfile = useCallback(async () => {
+    // Deduplicate: skip if request already in-flight
+    if (loadingFlagsRef.current.profile) return;
+    
+    try {
+      loadingFlagsRef.current.profile = true;
+      
+      // Abort previous request (handles race conditions from rapid navigation)
+      profileAbortRef.current?.abort();
+      profileAbortRef.current = new AbortController();
+
+      const res = await apiClient.get('/workers/stats', {
+        signal: profileAbortRef.current.signal,
+      } as any);
+      
+      // Only update state if component still mounted and this request not aborted
+      if (isMountedRef.current && !profileAbortRef.current.signal.aborted) {
+        setProfile(res.data?.data);
+        // Warm the image cache by preloading the avatar URL if available
+        if (user?.photoUrl && user.photoUrl !== '') {
+          try {
+            await Image.prefetch(user.photoUrl);
+          } catch (e) {
+            console.warn('[WorkerProfile] Failed to prefetch avatar:', e);
+          }
+        }
+      }
+    } catch (e: any) {
+      // Silently ignore AbortError (component unmounted or newer request superseded)
+      if (e?.name !== 'AbortError' && isMountedRef.current) {
+        console.warn('[WorkerProfile] Failed to load profile:', e);
+      }
+    } finally {
+      if (isMountedRef.current) {
+        loadingFlagsRef.current.profile = false;
+        setLoading(false);
+      }
+    }
+  }, [user?.photoUrl]);
+
+  const loadServices = useCallback(async () => {
+    // Deduplicate: skip if request already in-flight
+    if (loadingFlagsRef.current.services) return;
+    
+    try {
+      loadingFlagsRef.current.services = true;
+      
+      // Abort previous request (handles race conditions from rapid navigation)
+      servicesAbortRef.current?.abort();
+      servicesAbortRef.current = new AbortController();
+
+      const res = await apiClient.get('/workers/services', {
+        signal: servicesAbortRef.current.signal,
+      } as any);
+      
+      // Only update state if component still mounted and this request not aborted
+      if (isMountedRef.current && !servicesAbortRef.current.signal.aborted) {
+        setServices(res.data?.data || []);
+      }
+    } catch (e: any) {
+      // Silently ignore AbortError (component unmounted or newer request superseded)
+      if (e?.name !== 'AbortError' && isMountedRef.current) {
+        console.warn('[WorkerProfile] Failed to load services:', e);
+      }
+    } finally {
+      if (isMountedRef.current) {
+        loadingFlagsRef.current.services = false;
+      }
+    }
   }, []);
-
-  const loadProfile = async () => {
-    try {
-      const res = await apiClient.get('/workers/stats');
-      setProfile(res.data?.data);
-    } catch (e) {  }
-    finally { setLoading(false); }
-  };
-
-  const loadServices = async () => {
-    try {
-      const res = await apiClient.get('/workers/services');
-      setServices(res.data?.data || []);
-    } catch {}
-  };
 
   const pickImage = async () => {
     try {
@@ -82,6 +175,7 @@ export default function WorkerProfile() {
       });
       if (!result.canceled && result.assets[0]) {
         setSaving(true);
+        setImageError(false);
         const prevPhoto = user?.photoUrl;
         const fd = new FormData();
         fd.append('file', { uri: result.assets[0].uri, type: 'image/jpeg', name: 'photo.jpg' } as any);
@@ -445,28 +539,30 @@ export default function WorkerProfile() {
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>{serviceModal?.mode === 'edit' ? t('Edit Service') : t('Add Service')}</Text>
 
-            <Text style={styles.serviceFieldLabel}>{t('Service name')}</Text>
-            <View style={styles.serviceInputWrap}>
-              <TextInput style={styles.serviceInput} value={svcName} onChangeText={setSvcName} placeholder={t('e.g. Fix leaking tap')} placeholderTextColor="#B0A898" />
-            </View>
+            <FormInput
+              label={t('Service name')}
+              type="text"
+              value={svcName}
+              onChangeText={setSvcName}
+              placeholder={t('e.g. Fix leaking tap')}
+            />
 
-            <Text style={styles.serviceFieldLabel}>{t('Description')}</Text>
-            <View style={styles.serviceInputWrap}>
-              <TextInput
-                style={[styles.serviceInput, { minHeight: 60, textAlignVertical: 'top' }]}
-                value={svcDesc}
-                onChangeText={setSvcDesc}
-                multiline
-                placeholder={t('Describe what you offer')}
-                placeholderTextColor="#B0A898"
-                maxLength={300}
-              />
-            </View>
+            <FormInput
+              label={t('Description')}
+              type="text"
+              value={svcDesc}
+              onChangeText={setSvcDesc}
+              placeholder={t('Describe what you offer')}
+              containerStyle={{ marginBottom: 16 }}
+            />
 
-            <Text style={styles.serviceFieldLabel}>{t('Price')}</Text>
-            <View style={styles.serviceInputWrap}>
-              <TextInput style={styles.serviceInput} value={svcPrice} onChangeText={setSvcPrice} keyboardType="numeric" placeholder={t('e.g. 300')} placeholderTextColor="#B0A898" />
-            </View>
+            <FormInput
+              label={t('Price')}
+              type="decimal"
+              value={svcPrice}
+              onChangeText={setSvcPrice}
+              placeholder={t('e.g. 300')}
+            />
 
             <Text style={styles.serviceFieldLabel}>{t('Per')}</Text>
             <View style={{ flexDirection: 'row', gap: 6, marginBottom: 16 }}>
@@ -526,9 +622,24 @@ export default function WorkerProfile() {
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 40, gap: 20 }}>
         {/* Avatar */}
         <View style={{ alignItems: 'center', gap: 8, paddingTop: 8 }}>
-          <Pressable onPress={pickImage} style={{ position: 'relative' }}>
-            {user?.photoUrl ? (
-              <Image source={{ uri: user.photoUrl }} style={styles.avatar} />
+          <Pressable onPress={pickImage} disabled={saving} style={{ position: 'relative' }}>
+            {avatarSource ? (
+              <View style={{ position: 'relative' }}>
+                <Image 
+                  source={avatarSource} 
+                  style={styles.avatar}
+                  onLoadStart={() => setImageLoading(true)}
+                  onLoadEnd={() => setImageLoading(false)}
+                  onError={() => setImageError(true)}
+                  contentFit="cover"
+                  cachePolicy="memory-disk"
+                />
+                {imageLoading && (
+                  <View style={[styles.avatar, { position: 'absolute', backgroundColor: 'rgba(13, 13, 13, 0.05)', justifyContent: 'center', alignItems: 'center' }]}>
+                    <ActivityIndicator size="small" color="#FF5C00" />
+                  </View>
+                )}
+              </View>
             ) : (
               <View style={[styles.avatar, { backgroundColor: '#0D0D0D', justifyContent: 'center', alignItems: 'center' }]}>
                 <Text style={{ fontFamily: 'Inter_700Bold', fontSize: 32, color: '#F5F0E8' }}>
@@ -536,8 +647,12 @@ export default function WorkerProfile() {
                 </Text>
               </View>
             )}
-            <View style={{ position: 'absolute', bottom: 0, right: 0, width: 28, height: 28, borderRadius: 14, backgroundColor: '#FF5C00', justifyContent: 'center', alignItems: 'center', elevation: 2 }}>
-              <MaterialCommunityIcons name="camera" size={14} color="#FFFFFF" />
+            <View style={{ position: 'absolute', bottom: 0, right: 0, width: 28, height: 28, borderRadius: 14, backgroundColor: '#FF5C00', justifyContent: 'center', alignItems: 'center', elevation: 2, opacity: saving ? 0.6 : 1 }}>
+              {saving ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <MaterialCommunityIcons name="camera" size={14} color="#FFFFFF" />
+              )}
             </View>
           </Pressable>
           <Text style={{ fontFamily: 'Inter_700Bold', fontSize: 20, color: '#0D0D0D' }}>{user?.name || t('Worker')}</Text>

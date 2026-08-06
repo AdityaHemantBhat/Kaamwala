@@ -6,7 +6,6 @@ import { sendResponse, sendError } from '../utils/response';
 import { moneyEqual } from '../utils/money';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { emitToAdmins } from '../services/socket.service';
-import { devBackdoorsEnabled } from '../config/env';
 
 const PLAN_MAP: Record<string, { price: number; label: string; discount: number }> = {
   PLUS: { price: 199, label: 'KaamWala Plus', discount: 10 },
@@ -63,22 +62,19 @@ export const subscriptionController = {
 
   verifyPayment: async (req: AuthRequest, res: Response) => {
     try {
-      const { orderId, plan, isMock } = req.body;
+      const { orderId, plan } = req.body;
       if (!orderId || !['PLUS', 'PRO'].includes(plan)) return sendError(res, 400, 'Missing/invalid payment details');
 
-      // Dev-only mock path (Expo Go has no native SDK). Only active when
-      // ENABLE_DEV_BACKDOORS=true is explicitly set; never in production.
-      if (!(devBackdoorsEnabled && isMock)) {
-        const order = await paymentService.fetchOrder(orderId);
-        if (order.order_status !== 'PAID') throw new Error('Payment not completed');
-        if (!moneyEqual(Number(order.order_amount), PLAN_MAP[plan]!.price)) {
-          throw new Error('Payment amount does not match plan price');
-        }
-        // Ownership: the order must belong to this user (stamped at createOrder).
-        const orderCustomerId = order.customer_details?.customer_id;
-        if (orderCustomerId && orderCustomerId !== req.user!.userId) {
-          throw new Error('Order does not belong to this account');
-        }
+      // Verify the order with Cashfree — payment must be completed.
+      const order = await paymentService.fetchOrder(orderId);
+      if (order.order_status !== 'PAID') throw new Error('Payment not completed');
+      if (!moneyEqual(Number(order.order_amount), PLAN_MAP[plan]!.price)) {
+        throw new Error('Payment amount does not match plan price');
+      }
+      // Ownership: the order must belong to this user (stamped at createOrder).
+      const orderCustomerId = order.customer_details?.customer_id;
+      if (orderCustomerId && orderCustomerId !== req.user!.userId) {
+        throw new Error('Order does not belong to this account');
       }
 
       const periodEnd = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);

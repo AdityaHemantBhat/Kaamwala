@@ -260,14 +260,21 @@ export const bookingService = {
     switch (status) {
       case BookingStatus.ACCEPTED:
         updateData.acceptedAt = new Date();
+        // Generate arrival OTP immediately so the customer can see the
+        // QR code as soon as the worker accepts — not only when the
+        // worker clicks "On My Way".
+        updateData.arrivalOtp = Math.floor(1000 + Math.random() * 9000).toString();
         // Worker accepting a job counts as an active day for the streak.
         await recordWorkerStreak(booking.workerId);
         break;
       case BookingStatus.ON_THE_WAY:
         updateData.onTheWayAt = new Date();
         updateData.travelProtectionEligibleAt = new Date();
-        // Generate arrival OTP for customer
-        updateData.arrivalOtp = Math.floor(1000 + Math.random() * 9000).toString();
+        // Arrival OTP already generated on ACCEPTED; regenerate only if
+        // somehow missing (backward-compat safety net).
+        if (!updateData.arrivalOtp) {
+          updateData.arrivalOtp = Math.floor(1000 + Math.random() * 9000).toString();
+        }
         // Clear old location so customer waits for fresh live tracking
         updateData.workerLat = null;
         updateData.workerLng = null;

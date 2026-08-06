@@ -868,10 +868,7 @@ export default function PostRequest() {
             <Text style={styles.recoLabel}>{t('TYPICAL LOCAL PRICE')}</Text>
             <Text style={styles.recoRange}>
               ₹{recommendation.rangeLow.toLocaleString('en-IN')} – ₹{recommendation.rangeHigh.toLocaleString('en-IN')}
-            </Text>
-            {recommendation.confidence < 40 && (
-              <Text style={styles.recoHint}>{t('Limited data in this area yet')}</Text>
-            )}
+             </Text>
           </View>
           <Pressable style={styles.recoUseBtn} onPress={useRecommended}>
             <Text style={styles.recoUseBtnText}>{t('Use')} ₹{recommendation.reference}</Text>

@@ -88,7 +88,6 @@ export default function WorkerSubscription() {
         await apiClient.post('/workers/subscription/verify', {
           orderId: order.orderId,
           plan: selected,
-          isMock: !!paymentResult.isMock,
         });
         setCurrent(selected);
         try {

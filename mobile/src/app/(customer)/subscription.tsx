@@ -51,22 +51,42 @@ export default function SubscriptionScreen() {
     if (selected === current || selected === 'BASIC') return;
     setProcessing(true);
     try {
-      const res = await apiClient.post('/subscriptions/verify', {
-        orderId: `test_${Date.now()}`,
+      // 1. Create a real Cashfree order for the subscription.
+      const orderRes = await apiClient.post('/subscriptions/create-order', {
         plan: selected,
-        isMock: true,
       });
-      if (res.data?.success) {
+      const order = orderRes.data?.data;
+      if (!order?.orderId || !order?.paymentSessionId) {
+        throw new Error(t('Failed to initialize payment'));
+      }
+
+      // 2. Launch the real Cashfree checkout (requires native SDK / development build).
+      const { startCashfreePayment } = require('../../utils/cashfree');
+      const paymentResult = await startCashfreePayment(order.paymentSessionId, order.orderId);
+
+      if (paymentResult.status !== 'SUCCESS') {
+        throw new Error(t('Payment cancelled'));
+      }
+
+      // 3. Verify the payment with backend — backend confirms order status with Cashfree.
+      const verifyRes = await apiClient.post('/subscriptions/verify', {
+        orderId: order.orderId,
+        plan: selected,
+      });
+
+      if (verifyRes.data?.success) {
         setCurrent(selected);
         showToast({ message: `${t('Subscribed to')} ${selected}!`, type: 'success' });
       } else {
         showToast({ message: t('Subscription failed. Please try again.'), type: 'error' });
       }
     } catch (e: any) {
-      if (e?.response?.data?.error) {
+      if (e?.message?.includes('cancelled')) {
+        showToast({ message: t('Payment cancelled'), type: 'info' });
+      } else if (e?.response?.data?.error) {
         showToast({ message: e.response.data.error, type: 'error' });
       } else {
-        showToast({ message: t('Failed to subscribe. Please try again.'), type: 'error' });
+        showToast({ message: e?.message || t('Failed to subscribe. Please try again.'), type: 'error' });
       }
     } finally {
       setProcessing(false);

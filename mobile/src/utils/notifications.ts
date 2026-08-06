@@ -1,4 +1,4 @@
-import { Platform } from 'react-native';
+import { Platform, AppState } from 'react-native';
 import Constants from 'expo-constants';
 import { router } from 'expo-router';
 import { apiClient } from '../api/client';
@@ -132,17 +132,26 @@ export async function registerForPushNotifications(): Promise<string | null> {
 export function setupNotificationListeners() {
   let sub: { remove: () => void } | null = null;
   let sub2: { remove: () => void } | null = null;
+  let appStateSubscription: any = null;
 
   const setup = async () => {
     const NotificationsModule = await loadNotifications();
     if (!NotificationsModule) return;
 
     // Foreground push received → in-app banner + badge increment.
+    // Mark as "delivered" on the backend so we don't retry sending it.
     sub = NotificationsModule.addNotificationReceivedListener((notification) => {
       const content = notification.request.content;
       const data = extractData(content.data);
+      const notificationId = data.id;
+      
+      // Mark as delivered on backend (prevents retry)
+      if (notificationId) {
+        apiClient.post(`/notifications/${notificationId}/mark-delivered`).catch(() => {});
+      }
+
       const payload = {
-        id: data.id || undefined,
+        id: notificationId || undefined,
         type: data.type || 'general',
         title: content.title || 'Notification',
         body: content.body || '',
@@ -155,10 +164,17 @@ export function setupNotificationListeners() {
       NotificationsModule.setBadgeCountAsync(unreadCount + 1).catch(() => {});
     });
 
-    // Tap → navigate to the correct screen and clear the OS badge.
+    // Tap → navigate to the correct screen, mark as delivered, and clear the OS badge.
     sub2 = NotificationsModule.addNotificationResponseReceivedListener((response) => {
       const content = response.notification.request.content;
       const data = extractData(content.data);
+      const notificationId = data.id;
+
+      // Mark as delivered/opened on backend
+      if (notificationId) {
+        apiClient.post(`/notifications/${notificationId}/mark-delivered`).catch(() => {});
+      }
+
       const payload = { type: data.type || 'general', title: content.title || '', body: content.body || '', data };
       const role = useAuthStore.getState().user?.role as any;
       NotificationsModule.setBadgeCountAsync(0).catch(() => {});
@@ -177,6 +193,13 @@ export function setupNotificationListeners() {
         if (!response?.notification) return;
         const content = response.notification.request.content;
         const data = extractData(content.data);
+        const notificationId = data.id;
+
+        // Mark as delivered
+        if (notificationId) {
+          apiClient.post(`/notifications/${notificationId}/mark-delivered`).catch(() => {});
+        }
+
         const payload = { type: data.type || 'general', title: content.title || '', body: content.body || '', data };
 
         const tryNavigate = () => {
@@ -197,6 +220,15 @@ export function setupNotificationListeners() {
         }
       })
       .catch(() => {});
+
+    // Re-register token immediately when app comes to foreground (not with cooldown).
+    // This ensures backend has the latest token after OS updates, reinstalls, etc.
+    // The backend deduplicates token updates, so frequent re-registers are safe.
+    appStateSubscription = AppState.addEventListener('change', (nextAppState) => {
+      if (nextAppState === 'active' && useAuthStore.getState().isAuthenticated) {
+        registerForPushNotifications().catch(() => {});
+      }
+    });
   };
 
   setup();
@@ -204,5 +236,6 @@ export function setupNotificationListeners() {
   return () => {
     sub?.remove();
     sub2?.remove();
+    appStateSubscription?.remove?.();
   };
 }

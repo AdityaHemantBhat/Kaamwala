@@ -104,8 +104,6 @@ export default function WorkerEarnings() {
       // 3. Only now credit the wallet — backend verifies the order with Cashfree.
       await apiClient.post('/payments/verify-wallet-topup', {
         orderId: order.orderId,
-        isMock: paymentResult.isMock,
-        ...(paymentResult.isMock ? { amount: amt } : {}),
       });
 
       showToast({ message: `₹${amt} ${t('added successfully!')}`, type: 'success' });

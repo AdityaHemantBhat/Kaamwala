@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { adminController } from '../controllers/admin.controller';
 import { verificationAdminController } from '../controllers/verification-admin.controller';
+import pushAdminController from '../controllers/push-admin.controller';
 import { authenticate } from '../middleware/auth.middleware';
 import { requireRole } from '../middleware/role.middleware';
 
@@ -31,5 +32,8 @@ router.post('/users/:userId/ban', adminController.banUser);
 router.post('/users/:userId/unban', adminController.unbanUser);
 router.get('/banned-ips', adminController.getBannedIps);
 router.delete('/banned-ips/:ip', adminController.unbanIp);
+
+// Push Notifications
+router.use('/push', pushAdminController);
 
 export default router;

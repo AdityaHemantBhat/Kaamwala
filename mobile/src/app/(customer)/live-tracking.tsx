@@ -136,29 +136,52 @@ export default function LiveTracking() {
   useEffect(() => {
     if (!bookingId) return;
     let cancelled = false;
+    let pollInterval: NodeJS.Timeout | null = null;
+
     loadTracking();
 
     socketService.connect();
     socketService.joinBookingChat(bookingId);
+    
+    // Socket listeners for real-time updates
     socketService.on('worker_location_updated', (data: any) => {
+      if (cancelled) return;
       if (data.lat !== undefined && data.lng !== undefined && (Math.abs(data.lat) > 1 || Math.abs(data.lng) > 1)) {
         moveWorker(data.lat, data.lng);
       }
       if (data.eta !== undefined) setEta(data.eta);
     });
+    
     socketService.on('worker_stopped_sharing', () => {
+      if (cancelled) return;
       setWorkerLoc(null);
       latestRef.current = null;
       setEta(null);
     });
-    socketService.on('worker_arrived', () => { setArrived(true); setEta(0); });
+    
+    socketService.on('worker_arrived', () => {
+      if (cancelled) return;
+      setArrived(true);
+      setEta(0);
+    });
+
+    // Polling fallback: re-fetch tracking data every 5 seconds to catch updates
+    // if Socket.IO delivery fails. This prevents the race condition where
+    // the OTP never appears because socket messages are lost.
+    pollInterval = setInterval(() => {
+      if (!cancelled) {
+        loadTracking().catch(() => {});
+      }
+    }, 5000);
 
     return () => {
+      cancelled = true;
       socketService.off('worker_location_updated');
       socketService.off('worker_stopped_sharing');
       socketService.off('worker_arrived');
+      if (pollInterval) clearInterval(pollInterval);
     };
-  }, [bookingId]);
+  }, [bookingId, moveWorker, placeDestination]);
 
   const loadTracking = async () => {
     try {
@@ -171,21 +194,39 @@ export default function LiveTracking() {
       // Fetch fresh data in background
       const res = await apiClient.get(`/tracking/${bookingId}`);
       const d = res.data?.data;
-      setWorkerName(d?.workerName || t('Worker'));
-      setEta(d?.workerEta ?? null);
-      setArrivalOtp(d?.arrivalOtp || null);
       
-      // Cache and display updated location
-      if (typeof d?.workerLat === 'number' && typeof d?.workerLng === 'number' && (Math.abs(d.workerLat) > 1 || Math.abs(d.workerLng) > 1)) {
+      if (!d) {
+        console.warn('[LiveTracking] No tracking data returned');
+        return;
+      }
+
+      // Update basic info
+      setWorkerName(d.workerName || 'Worker');
+      setEta(d.workerEta ?? null);
+      
+      // Critical: Update arrivalOtp - this triggers QR display.
+      // If OTP just appeared, show it immediately even if location hasn't loaded yet.
+      if (d.arrivalOtp && !arrivalOtp) {
+        setArrivalOtp(d.arrivalOtp);
+      } else if (d.arrivalOtp) {
+        setArrivalOtp(d.arrivalOtp);
+      }
+      
+      // Cache and display updated location if available
+      if (typeof d.workerLat === 'number' && typeof d.workerLng === 'number' && (Math.abs(d.workerLat) > 1 || Math.abs(d.workerLng) > 1)) {
         cacheLocation(bookingId, d.workerLat, d.workerLng);
         moveWorker(d.workerLat, d.workerLng);
       }
       
-      if (typeof d?.customerLat === 'number' && typeof d?.customerLng === 'number') {
+      // Place customer destination
+      if (typeof d.customerLat === 'number' && typeof d.customerLng === 'number') {
         placeDestination(d.customerLat, d.customerLng);
       }
-    } catch (e) {  }
-    finally { setLoading(false); }
+    } catch (e) {
+      console.error('[LiveTracking] Error loading tracking data:', e);
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (loading) {

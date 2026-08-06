@@ -84,8 +84,6 @@ export default function PaymentsScreen() {
       // 3. Only now credit the wallet — backend verifies the order with Cashfree.
       await apiClient.post('/payments/verify-wallet-topup', {
         orderId: order.orderId,
-        isMock: paymentResult.isMock,
-        ...(paymentResult.isMock ? { amount: amt } : {}),
       });
 
       showToast({ message: t('Added') + ' ₹' + amt + ' ' + t('to wallet'), type: 'success' });

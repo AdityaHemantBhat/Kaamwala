@@ -33,6 +33,7 @@ export default function WorkerBookings() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [unreadMessages, setUnreadMessages] = useState<Record<string, number>>({});
   const [otpModal, setOtpModal] = useState<{ visible: boolean; bookingId: string }>({ visible: false, bookingId: '' });
   const [otpValue, setOtpValue] = useState('');
   const [cancelModal, setCancelModal] = useState<{ visible: boolean; booking: any }>({ visible: false, booking: null });
@@ -73,11 +74,23 @@ export default function WorkerBookings() {
     const handleStatusUpdate = () => {
       loadBookings();
     };
+
+    // Track new messages for unread badges
+    const handleNewMessage = (data: any) => {
+      if (data?.bookingId) {
+        setUnreadMessages(prev => ({
+          ...prev,
+          [data.bookingId]: (prev[data.bookingId] || 0) + 1
+        }));
+      }
+    };
     
     socketService.on('booking_status_update', handleStatusUpdate);
+    socketService.on('new_message', handleNewMessage);
     
     return () => {
       socketService.off('booking_status_update', handleStatusUpdate);
+      socketService.off('new_message', handleNewMessage);
     };
   }, [loadBookings]);
 
@@ -373,10 +386,25 @@ export default function WorkerBookings() {
                     {/* Chat — active bookings only */}
                     {(booking.status === 'ACCEPTED' || booking.status === 'ON_THE_WAY' || booking.status === 'IN_PROGRESS') && (
                       <Pressable
-                        style={[styles.iconBtn, { backgroundColor: '#25D366' }]}
-                        onPress={() => router.push(`/(worker)/chat?bookingId=${booking.id}`)}
+                        style={({ pressed }) => [
+                          styles.chatIconBtn,
+                          { backgroundColor: pressed ? '#1EA653' : '#25D366' }
+                        ]}
+                        onPress={() => {
+                          setUnreadMessages(prev => ({ ...prev, [booking.id]: 0 }));
+                          router.push(`/(worker)/chat?bookingId=${booking.id}`);
+                        }}
+                        accessibilityRole="button"
+                        accessibilityLabel={t('Open chat')}
                       >
                         <MaterialCommunityIcons name="whatsapp" size={20} color="#FFF" />
+                        {unreadMessages[booking.id] ? (
+                          <View style={styles.unreadBadge}>
+                            <Text style={styles.unreadBadgeText}>
+                              {unreadMessages[booking.id] > 99 ? '99+' : unreadMessages[booking.id]}
+                            </Text>
+                          </View>
+                        ) : null}
                       </Pressable>
                     )}
 
@@ -853,6 +881,7 @@ const styles = StyleSheet.create({
 
   bookingCard: {
     backgroundColor: '#FFFFFF', borderRadius: 16, elevation: 2, padding: 16, marginBottom: 14,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2,
   },
   cardHeader: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10,
@@ -883,7 +912,7 @@ const styles = StyleSheet.create({
     borderColor: '#8B1A1A',
   },
   rejectBtnText: { fontSize: 14, fontFamily: 'Inter_600SemiBold', color: '#8B1A1A' },
-  secondaryRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8 },
+  secondaryRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 10, paddingTop: 8 },
   secondaryBtn: {
     flex: 1, minWidth: 140, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     borderRadius: 20, paddingVertical: 10, paddingHorizontal: 16, gap: 6,
@@ -902,6 +931,24 @@ const styles = StyleSheet.create({
   iconBtn: {
     width: 40, height: 40, borderRadius: 20,
     alignItems: 'center', justifyContent: 'center',
+  },
+  // Improved chat button with better styling and accessibility
+  chatIconBtn: {
+    width: 44, height: 44, borderRadius: 22,
+    alignItems: 'center', justifyContent: 'center',
+    elevation: 3, shadowColor: '#25D366', shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25, shadowRadius: 3.84,
+  },
+  // Unread message badge on chat button
+  unreadBadge: {
+    position: 'absolute', top: -2, right: -2,
+    minWidth: 22, height: 22, borderRadius: 11,
+    backgroundColor: '#FF5C00', justifyContent: 'center', alignItems: 'center',
+    paddingHorizontal: 4, elevation: 4,
+    borderWidth: 2, borderColor: '#FFFFFF',
+  },
+  unreadBadgeText: {
+    fontFamily: 'Inter_700Bold', fontSize: 10, color: '#FFFFFF', textAlign: 'center',
   },
   // Job-photo modal
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },

@@ -7,7 +7,6 @@ import { notificationService } from '../services/notification.service';
 import { sendResponse, sendError } from '../utils/response';
 import { moneyEqual, guardAmount } from '../utils/money';
 import { AuthRequest } from '../middleware/auth.middleware';
-import { devBackdoorsEnabled } from '../config/env';
 
 /** Notify both parties once a booking has been paid. */
 async function notifyBookingPaid(bookingId: string, customerId: string, workerId: string, totalAmount: number) {
@@ -35,7 +34,7 @@ export const paymentController = {
 
   verifyPayment: async (req: AuthRequest, res: Response) => {
     try {
-      const { bookingId, orderId, isMock } = req.body;
+      const { bookingId, orderId } = req.body;
       if (!bookingId || !orderId) return sendError(res, 400, 'Booking ID and order ID are required');
 
       // Ownership: only the customer of the booking may verify its payment.
@@ -45,21 +44,6 @@ export const paymentController = {
       });
       if (!booking) return sendError(res, 404, 'Booking not found');
       if (booking.customerId !== req.user!.userId) return sendError(res, 403, 'Unauthorized');
-
-      // Mock path is a dev convenience (Expo Go has no native SDK) — only active
-      // when ENABLE_DEV_BACKDOORS=true is explicitly set; never in production.
-      if (devBackdoorsEnabled && (isMock || (orderId && orderId.startsWith('mock_')))) {
-        await prisma.booking.update({
-          where: { id: bookingId },
-          data: { paymentStatus: 'PAID', paymentRefId: orderId },
-        });
-
-        await bookingService.processPayout(bookingId);
-        await cancellationService.collectPendingFee(booking.customerId, bookingId, booking.totalAmount);
-        await notifyBookingPaid(bookingId, booking.customerId, booking.workerId, booking.totalAmount);
-
-        return sendResponse(res, 200, { success: true, mock: true });
-      }
 
       // Real path: trust only Cashfree — order status, amount AND ownership must
       // match. Prevents under-payment and order-reuse (borrowed orderIds).
@@ -188,24 +172,13 @@ export const paymentController = {
 
   verifyWalletTopup: async (req: AuthRequest, res: Response) => {
     try {
-      const { orderId, isMock, amount: requestedAmount } = req.body;
+      const { orderId } = req.body;
       if (!orderId) return sendError(res, 400, 'orderId is required');
 
       const userId = req.user!.userId;
 
-      // Verify payment with Cashfree. The mock path (Expo Go dev testing, where
-      // the native SDK can't run) credits the client-declared amount; the real
-      // path trusts only Cashfree's order status + amount.
-      // The mock path is dev-only — never usable in production.
-      let amount: number;
-      if (devBackdoorsEnabled && isMock) {
-        const guarded = guardAmount(requestedAmount);
-        if (guarded === null) return sendError(res, 400, 'Invalid amount');
-        amount = guarded;
-      } else {
-        const verified = await paymentService.verifyWalletOrder(orderId, userId);
-        amount = Number(verified.amount);
-      }
+      const verified = await paymentService.verifyWalletOrder(orderId, userId);
+      const amount = Number(verified.amount);
 
       // Atomic credit + ledger, guarded by a UNIQUE idempotencyKey
       // (`wallet_topup:<orderId>`). The ledger row is created FIRST inside the

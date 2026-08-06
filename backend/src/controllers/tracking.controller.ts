@@ -62,12 +62,19 @@ export const trackingController = {
 
       const address = await prisma.address.findUnique({ where: { id: booking.addressId } });
 
-      const isTracking = booking.status === 'ON_THE_WAY';
+      // Worker location tracking is available once the booking is ACCEPTED (arrivalOtp generated),
+      // NOT just when ON_THE_WAY. This prevents race conditions where customer opens tracking
+      // before worker clicks "On My Way" — they'll see an empty map with no OTP (bad UX).
+      // Fix: if arrivalOtp exists, location tracking has been authorized and should be shown.
+      const isTrackingAvailable = !!booking.arrivalOtp;
+      const isActiveTracking = booking.status === 'ON_THE_WAY';
 
       sendResponse(res, 200, {
-        workerLat: isTracking ? location.workerLat : null,
-        workerLng: isTracking ? location.workerLng : null,
-        workerEta: isTracking ? location.workerEta : null,
+        // If tracking is available (OTP generated), show location if it exists (even if worker hasn't clicked "On My Way" yet).
+        // If tracking is actively in progress (ON_THE_WAY), always show current location.
+        workerLat: (isTrackingAvailable || isActiveTracking) && location.workerLat !== null ? location.workerLat : null,
+        workerLng: (isTrackingAvailable || isActiveTracking) && location.workerLng !== null ? location.workerLng : null,
+        workerEta: (isTrackingAvailable || isActiveTracking) ? location.workerEta : null,
         arrivalOtp: booking.arrivalOtp || null,
         customerLat: address?.latitude,
         customerLng: address?.longitude,

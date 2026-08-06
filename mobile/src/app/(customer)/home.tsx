@@ -13,7 +13,6 @@ import * as Location from 'expo-location';
 import { useT } from '../../utils/i18n';
 import { FeaturedBadge, isFeaturedActive } from '../../components/ui/FeaturedBadge';
 import { RebookSheet } from '../../components/ui/RebookSheet';
-import { BroadcastMarquee } from '../../components/ui/BroadcastMarquee';
 import { formatMoneyWithSymbol } from '../../utils/money';
 import { socketService } from '../../api/socket';
 
@@ -103,7 +102,6 @@ export default function CustomerHome() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#F5F0E8' }} edges={['top']}>
-      <BroadcastMarquee />
       <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchData(); fetchUnread(); }} tintColor="#0D0D0D" />}>
 

@@ -21,8 +21,6 @@ import { useT } from '../../utils/i18n';
 import { useToast } from '../../components/ui/ToastProvider';
 import { socketService } from '../../api/socket';
 import { apiClient } from '../../api/client';
-import { BroadcastMarquee } from '../../components/ui/BroadcastMarquee';
-
 export default function WorkerDashboard() {
   const t = useT();
   
@@ -192,7 +190,6 @@ export default function WorkerDashboard() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <BroadcastMarquee />
       <ScrollView
         style={styles.container}
         contentContainerStyle={styles.content}

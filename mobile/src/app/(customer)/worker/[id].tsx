@@ -5,34 +5,27 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { FeaturedBadge, isFeaturedActive } from '../../../components/ui/FeaturedBadge';
 import { SkeletonWorkerDetail } from '../../../components/ui/Skeleton';
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import { apiClient } from '../../../api/client';
+import { useRouter, useLocalParams } from 'expo-router';
 import { useBookingStore } from '../../../store/booking.store';
 import { useT } from '../../../utils/i18n';
+import { useWorkerProfile } from '../../../hooks/useWorkerProfile';
 
 export default function WorkerDetailScreen() {
   const t = useT();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id } = useLocalParams<{ id: string }>();
   const router = useRouter();
-  const [worker, setWorker] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  // The customer picks the exact service here — it is remembered in the booking
-  // store so the booking screen never asks them to select it again.
+  const { data: worker, isLoading, error } = useWorkerProfile(id);
   const [selectedService, setSelectedService] = useState<any>(null);
 
+  // Set default service when worker data loads
   useEffect(() => {
-    (async () => {
-      try {
-        const res = await apiClient.get(`/workers/${id}`);
-        const data = res.data?.data;
-        setWorker(data);
-        // Default to the worker's first listed service.
-        if (data?.services?.length) setSelectedService(data.services[0]);
-      } catch {} finally { setLoading(false); }
-    })();
-  }, [id]);
+    if (worker?.services?.length) {
+      setSelectedService(worker.services[0]);
+    }
+  }, [worker]);
 
-  if (loading) {
+  // First load: show skeleton
+  if (isLoading && !worker) {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: '#F5F0E8' }} edges={['top']}>
         <SkeletonWorkerDetail />
@@ -40,17 +33,27 @@ export default function WorkerDetailScreen() {
     );
   }
 
-  if (!worker) {
-    return <SafeAreaView style={{ flex: 1, backgroundColor: '#F5F0E8' }} edges={['top']}>
-      <View style={{ padding: 24 }}><Pressable onPress={() => router.back()}><MaterialCommunityIcons name="arrow-left" size={24} color="#0D0D0D" /></Pressable></View>
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <Text style={{ fontFamily: 'Inter_400Regular', fontSize: 14, color: '#999' }}>{t('Worker not found')}</Text>
-      </View>
-    </SafeAreaView>;
+  if (error || !worker) {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: '#F5F0E8' }} edges={['top']}>
+        <View style={{ padding: 24 }}>
+          <Pressable onPress={() => router.back()}>
+            <MaterialCommunityIcons name="arrow-left" size={24} color="#0D0D0D" />
+          </Pressable>
+        </View>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <Text style={{ fontFamily: 'Inter_400Regular', fontSize: 14, color: '#999' }}>
+            {t('Worker not found')}
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
   }
 
   const name = worker.user?.name || t('Worker');
-  const category = worker.category ? worker.category.split('_').map((word: string) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ') : t('Service Provider');
+  const category = worker.category
+    ? worker.category.split('_').map((word: string) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ')
+    : t('Service Provider');
   const avatarUrl = worker.user?.avatarUrl;
   const photos = worker.photos || [];
   const featured = isFeaturedActive(worker.isFeatured, worker.featuredUntil);
@@ -67,7 +70,12 @@ export default function WorkerDetailScreen() {
         {/* Profile */}
         <View style={{ alignItems: 'center', marginBottom: 24 }}>
           {avatarUrl ? (
-            <Image source={{ uri: avatarUrl }} style={{ width: 88, height: 88, borderRadius: 44, marginBottom: 12 }} contentFit="cover" />
+            <Image
+              source={{ uri: avatarUrl }}
+              style={{ width: 88, height: 88, borderRadius: 44, marginBottom: 12 }}
+              contentFit="cover"
+              cachePolicy="memory-disk"
+            />
           ) : (
             <View style={{ width: 88, height: 88, borderRadius: 44, backgroundColor: '#0D0D0D', justifyContent: 'center', alignItems: 'center', marginBottom: 12 }}>
               <Text style={{ fontFamily: 'Inter_700Bold', fontSize: 32, color: '#F5F0E8' }}>{name[0].toUpperCase()}</Text>
@@ -102,7 +110,7 @@ export default function WorkerDetailScreen() {
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -24, paddingHorizontal: 24 }}>
               {photos.map((p: any) => (
                 <View key={p.id} style={{ marginRight: 10 }}>
-                  {p.beforeUrl && <Image source={{ uri: p.beforeUrl }} style={{ width: 160, height: 120, borderRadius: 12, backgroundColor: '#EDE8DC' }} />}
+                  {p.beforeUrl && <Image source={{ uri: p.beforeUrl }} style={{ width: 160, height: 120, borderRadius: 12, backgroundColor: '#EDE8DC' }} cachePolicy="memory-disk" />}
                   {p.caption && <Text style={{ fontFamily: 'Inter_400Regular', fontSize: 10, color: '#6B6B6B', marginTop: 4, width: 160 }}>{p.caption}</Text>}
                 </View>
               ))}
@@ -110,9 +118,7 @@ export default function WorkerDetailScreen() {
           </View>
         )}
 
-        {/* Services — select the service to book right here. The choice is
-            remembered in the booking store so the booking screen opens with it
-            pre-filled and never asks the customer to pick again. */}
+        {/* Services */}
         {worker.services?.length > 0 && (
           <View style={{ marginBottom: 24 }}>
             <Text style={{ fontFamily: 'Inter_600SemiBold', fontSize: 13, color: '#0D0D0D', marginBottom: 10 }}>{t('Select Service')}</Text>
@@ -159,7 +165,8 @@ export default function WorkerDetailScreen() {
           onPress={() => {
             useBookingStore.getState().setPendingBooking(id, worker, selectedService);
             router.push('/(customer)/bookings');
-          }}>
+          }}
+        >
           <Text style={{ fontFamily: 'Inter_700Bold', fontSize: 16, color: '#FFF' }}>
             {t('Book')} {name.split(' ')[0]}{selectedService ? ` · ${selectedService.name}` : ''}
           </Text>

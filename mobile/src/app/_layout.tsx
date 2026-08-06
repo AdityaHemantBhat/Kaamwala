@@ -4,6 +4,7 @@ import { Stack, SplashScreen } from 'expo-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '../components/ui/ToastProvider';
 import { NotificationBannerProvider } from '../components/ui/NotificationBannerProvider';
+import { BroadcastPopupProvider } from '../components/ui/BroadcastPopup';
 import { initI18n } from '../utils/i18n';
 import { useAuthStore, initializeAuth } from '../store/auth.store';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -11,7 +12,7 @@ import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { useFonts, Poppins_800ExtraBold, Poppins_700Bold, Poppins_600SemiBold, Poppins_500Medium } from '@expo-google-fonts/poppins';
 import { Inter_400Regular, Inter_500Medium, Inter_700Bold } from '@expo-google-fonts/inter';
 import { SpaceMono_400Regular, SpaceMono_700Bold } from '@expo-google-fonts/space-mono';
-import { registerForPushNotifications, setupNotificationListeners } from '../utils/notifications';
+import { registerForPushNotifications, setupNotificationListeners, createAndroidChannels } from '../utils/notifications';
 import { BrandLaunchScreen } from '../components/ui/BrandLaunchScreen';
 
 const queryClient = new QueryClient();
@@ -45,9 +46,8 @@ export default function RootLayout() {
     initI18n();
   }, []);
 
-  // Register the push token only once a user is authenticated — registering at
-  // startup (pre-login) caused an unauthenticated 401 that could even trigger
-  // the client's logout-on-401 path.
+  // Register push token on app launch (once authenticated)
+  // Re-registration is handled automatically in setupNotificationListeners() on foreground
   useEffect(() => {
     if (isAuthenticated) {
       registerForPushNotifications();
@@ -74,6 +74,7 @@ export default function RootLayout() {
       <QueryClientProvider client={queryClient}>
         <ToastProvider>
           <NotificationBannerProvider>
+            <BroadcastPopupProvider>
             <BottomSheetModalProvider>
               <View style={{ flex: 1 }}>
                 <Stack screenOptions={{ headerShown: false }} />
@@ -82,6 +83,7 @@ export default function RootLayout() {
                 )}
               </View>
             </BottomSheetModalProvider>
+            </BroadcastPopupProvider>
           </NotificationBannerProvider>
         </ToastProvider>
       </QueryClientProvider>

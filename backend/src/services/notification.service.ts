@@ -1,6 +1,7 @@
 import { prisma } from '../config/prisma';
 import { logger } from '../utils/logger';
 import { sendPushToToken } from './push.service';
+import { pushDeliveryService } from './push-delivery.service';
 
 /**
  * Per-type delivery rules.
@@ -203,11 +204,31 @@ export const notificationService = {
           priority: meta.priority,
           data: dataObj ? { type, ...dataObj } : { type },
         });
+
+        // Track delivery attempt and handle failures
         if (result.invalid) {
-          // Dead token — clear it so we stop retrying it forever.
-          await prisma.user.update({ where: { id: user.id }, data: { fcmToken: null } }).catch(() => {});
-          logger.warn('Cleared invalid push token for user', { userId });
+          // Dead token — clear it atomically via versioned update to prevent race condition
+          const updated = await prisma.user.updateMany({
+            where: { id: user.id, fcmToken: user.fcmToken }, // Only clear if token hasn't changed
+            data: { fcmToken: null },
+          });
+          if (updated.count > 0) {
+            logger.warn('Cleared invalid push token for user', { userId });
+            await pushDeliveryService.recordFailure(notification.id, 'invalid_fcm_token');
+          }
+        } else if (!result.ok) {
+          // Temporary failure (network, rate limit) — record for retry
+          const willRetry = await pushDeliveryService.recordFailure(notification.id, 'send_failed');
+          if (!willRetry) {
+            logger.error('Push notification delivery exhausted retries', { notificationId: notification.id, userId });
+          }
+        } else {
+          // Send succeeded — update status to DELIVERED (or await FCM callback)
+          await pushDeliveryService.markDelivered(notification.id, 'fcm_callback');
         }
+      } else if (!meta.silent) {
+        // No token available — record for potential retry when token is available
+        await pushDeliveryService.recordFailure(notification.id, 'no_fcm_token_available');
       }
 
       return notification;
@@ -231,5 +252,67 @@ export const notificationService = {
     const age = Date.now() - new Date(recent.createdAt).getTime();
     if (rowKey && rowKey === key && age < coalesceMs) return recent;
     return null;
+  },
+
+  /**
+   * Retry worker: processes failed push notifications with backoff.
+   * Called periodically (e.g., every 30s) to sweep and retry PENDING notifications.
+   * 
+   * Production: integrate into a background job service (Bull, Temporal, etc).
+   * For now, can be triggered manually or via cron. Returns count of retried notifications.
+   */
+  async retryFailedPushes(limit: number = 50): Promise<number> {
+    const notifications = await pushDeliveryService.getPendingRetries(limit);
+    
+    if (notifications.length === 0) {
+      return 0;
+    }
+
+    logger.info('Processing push delivery retries', { count: notifications.length });
+
+    for (const notification of notifications) {
+      try {
+        // Re-fetch user to get current token (may have changed since original send)
+        const user = await prisma.user.findUnique({
+          where: { id: notification.userId },
+          select: { id: true, fcmToken: true, role: true },
+        });
+
+        if (!user?.fcmToken) {
+          // Token still missing — record failure but keep as PENDING for later
+          await pushDeliveryService.recordFailure(notification.id, 'no_token_on_retry');
+          continue;
+        }
+
+        // Attempt to send
+        const result = await sendPushToToken(user.fcmToken, {
+          title: notification.title,
+          body: notification.body,
+          channelId: 'general',
+          priority: (notification.data as any)?.priority || 'default',
+          data: notification.data as any,
+        });
+
+        if (result.invalid) {
+          // Dead token — clear it
+          await prisma.user.updateMany({
+            where: { id: user.id, fcmToken: user.fcmToken },
+            data: { fcmToken: null },
+          });
+          await pushDeliveryService.recordFailure(notification.id, 'invalid_token_on_retry');
+        } else if (!result.ok) {
+          // Temporary failure — record and let backoff handle next retry
+          await pushDeliveryService.recordFailure(notification.id, 'send_failed_on_retry');
+        } else {
+          // Success — mark delivered
+          await pushDeliveryService.markDelivered(notification.id, 'fcm_callback');
+          logger.info('Push notification delivered on retry', { notificationId: notification.id });
+        }
+      } catch (e) {
+        logger.error('Failed to retry push notification', { notificationId: notification.id, error: e });
+      }
+    }
+
+    return notifications.length;
   },
 };

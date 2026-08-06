@@ -23,9 +23,13 @@ export const useNotificationBanner = () => {
   return ctx;
 };
 
-const VISIBLE_MS = 4200;
-const DEDUP_MS = 3000;
-const MAX_QUEUE = 4;
+// Timing constants (production-grade)
+const VISIBLE_MS = 3500; // Display banner for 3.5 seconds
+const DEDUP_MS = 5000; // Deduplication window (prevent socket + push duplicate)
+const MAX_QUEUE = 4; // Max queued notifications (prevent overflow)
+const DISMISS_ANIMATION_MS = 200; // Smooth exit animation duration
+
+const topInset = initialWindowMetrics?.insets?.top ?? 0;
 
 function bannerKey(notification: any): string | null {
   if (!notification) return null;
@@ -33,8 +37,6 @@ function bannerKey(notification: any): string | null {
   const data = notification.data || {};
   return `${notification.type}:${data.bookingId || data.requestId || data.ticketId || ''}`;
 }
-
-const topInset = initialWindowMetrics?.insets?.top ?? 0;
 
 export const NotificationBannerProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const router = useRouter();
@@ -46,60 +48,118 @@ export const NotificationBannerProvider: React.FC<{ children: React.ReactNode }>
   const translateY = useSharedValue(-140);
   const translateX = useSharedValue(0);
   const opacity = useSharedValue(0);
-  const dismissTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const recentKeys = useRef<Set<string>>(new Set());
+  const progressWidth = useSharedValue(100); // Progress bar: 100% → 0%
 
-  const clearCurrent = useCallback(() => setCurrent(null), []);
+  const dismissTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const progressTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const recentKeys = useRef<Set<string>>(new Set());
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  const clearCurrent = useCallback(() => {
+    if (isMountedRef.current) {
+      setCurrent(null);
+    }
+  }, []);
+
+  const clearTimers = useCallback(() => {
+    if (dismissTimer.current) {
+      clearTimeout(dismissTimer.current);
+      dismissTimer.current = null;
+    }
+    if (progressTimer.current) {
+      clearInterval(progressTimer.current);
+      progressTimer.current = null;
+    }
+  }, []);
 
   const dismiss = useCallback(() => {
-    if (dismissTimer.current) clearTimeout(dismissTimer.current);
-    translateY.value = withTiming(-150, { duration: 200 });
-    opacity.value = withTiming(0, { duration: 180 }, (finished) => {
+    clearTimers();
+    translateY.value = withTiming(-150, { duration: DISMISS_ANIMATION_MS });
+    opacity.value = withTiming(0, { duration: DISMISS_ANIMATION_MS - 20 }, (finished) => {
       if (finished) runOnJS(clearCurrent)();
     });
-  }, [translateY, opacity, clearCurrent]);
+    progressWidth.value = 0;
+  }, [clearTimers, clearCurrent, translateY, opacity, progressWidth]);
 
   // Slide the banner off to the left or right (swipe-to-dismiss).
   const dismissHorizontal = useCallback((dir: 1 | -1) => {
-    if (dismissTimer.current) clearTimeout(dismissTimer.current);
-    translateX.value = withTiming(dir * 500, { duration: 200 });
-    opacity.value = withTiming(0, { duration: 180 }, (finished) => {
+    clearTimers();
+    translateX.value = withTiming(dir * 500, { duration: DISMISS_ANIMATION_MS });
+    opacity.value = withTiming(0, { duration: DISMISS_ANIMATION_MS - 20 }, (finished) => {
       if (finished) runOnJS(clearCurrent)();
     });
-  }, [translateX, opacity, clearCurrent]);
+    progressWidth.value = 0;
+  }, [clearTimers, clearCurrent, translateX, opacity, progressWidth]);
 
   const showBanner = useCallback((notification: any) => {
     // Never interrupt the user while they are already reading their inbox.
     if (useNotificationsStore.getState().suppressBanners) return;
     const key = bannerKey(notification);
     if (!key) return;
+    
     // Coalesce near-duplicate banners (socket + push for the same event).
     if (recentKeys.current.has(key)) return;
     recentKeys.current.add(key);
-    setTimeout(() => recentKeys.current.delete(key), DEDUP_MS);
+    setTimeout(() => {
+      recentKeys.current.delete(key);
+    }, DEDUP_MS);
+
+    // Add to queue (up to MAX_QUEUE to prevent memory bloat)
     setQueue((q) => (q.length >= MAX_QUEUE ? q : [...q, notification]));
   }, []);
 
   // Pull the next queued banner once the current one clears.
   useEffect(() => {
     if (current || queue.length === 0) return;
+    
     const next = queue[0];
     setQueue((q) => q.slice(1));
     setCurrent(next);
 
+    // Reset animations
     translateY.value = -150;
     translateX.value = 0;
     opacity.value = 0;
+    progressWidth.value = 100;
+
+    // Animate in
     translateY.value = withSpring(0, { damping: 18, stiffness: 220 });
     opacity.value = withTiming(1, { duration: 220 });
 
+    // Haptic feedback (subtle)
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     } catch {}
 
-    dismissTimer.current = setTimeout(dismiss, VISIBLE_MS);
+    // Start auto-dismiss timer (3.5 seconds)
+    dismissTimer.current = setTimeout(() => {
+      if (isMountedRef.current) {
+        dismiss();
+      }
+    }, VISIBLE_MS);
+
+    // Animate progress bar disappearing
+    progressTimer.current = setInterval(() => {
+      progressWidth.value = withTiming(
+        0,
+        { duration: VISIBLE_MS },
+        (finished) => {
+          if (finished && progressTimer.current) {
+            clearInterval(progressTimer.current);
+            progressTimer.current = null;
+          }
+        }
+      );
+    }, 0);
+
     return () => {
-      if (dismissTimer.current) clearTimeout(dismissTimer.current);
+      clearTimers();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current, queue.length]);
@@ -147,6 +207,10 @@ export const NotificationBannerProvider: React.FC<{ children: React.ReactNode }>
     opacity: opacity.value,
   }));
 
+  const progressAnimatedStyle = useAnimatedStyle(() => ({
+    width: `${progressWidth.value}%`,
+  }));
+
   return (
     <BannerContext.Provider value={{ showBanner }}>
       {children}
@@ -178,6 +242,21 @@ export const NotificationBannerProvider: React.FC<{ children: React.ReactNode }>
                 );
               })()}
             </Pressable>
+            
+            {/* Progress bar: indicates auto-dismiss timing */}
+            <Animated.View
+              style={[
+                styles.progressBar,
+                progressAnimatedStyle,
+              ]}
+            />
+            
+            {/* Queue indicator: shows if more notifications are waiting */}
+            {queue.length > 0 && (
+              <View style={styles.queueIndicator}>
+                <Text style={styles.queueText}>{queue.length}</Text>
+              </View>
+            )}
           </Animated.View>
         </GestureDetector>
       )}
@@ -233,5 +312,35 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingLeft: 4,
+  },
+  progressBar: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    height: 3,
+    backgroundColor: '#FF5C00',
+    borderBottomLeftRadius: 16,
+    borderBottomRightRadius: 16,
+  },
+  queueIndicator: {
+    position: 'absolute',
+    top: -6,
+    right: 8,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#FF5C00',
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 4,
+    shadowColor: '#FF5C00',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+  },
+  queueText: {
+    color: '#FFFFFF',
+    fontFamily: 'Inter_700Bold',
+    fontSize: 11,
   },
 });

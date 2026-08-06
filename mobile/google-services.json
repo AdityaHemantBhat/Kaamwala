@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "878136563316",
+    "project_id": "kaamwala-ea406",
+    "storage_bucket": "kaamwala-ea406.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:878136563316:android:3045e3cb0be48031f4e321",
+        "android_client_info": {
+          "package_name": "com.kaamwala.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDBeJSd8o6fovCUS9vJzeSJgJMB456SFUw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

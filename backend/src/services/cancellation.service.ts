@@ -7,6 +7,7 @@ import { emitToUser, emitToAdmins } from './socket.service';
 import { notificationService } from './notification.service';
 import { chatService } from './chat.service';
 import { workerHealthService } from './workerHealth.service';
+import { analyticsService } from './analytics.service';
 import { logger } from '../utils/logger';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -344,6 +345,25 @@ export const cancellationService = {
     emitToUser(booking.workerId, 'booking_status_update', result.updatedBooking);
     emitToAdmins('admin_refresh', { type: 'cancellation' });
 
+    // Track analytics for business intelligence
+    analyticsService.track('booking_cancelled_by_customer', {
+      userId: customerId,
+      role: 'CUSTOMER',
+      category: booking.serviceCategory,
+      payload: {
+        bookingId,
+        bookingNumber: booking.bookingNumber,
+        reasonCategory,
+        feeAmount,
+        workerCompensation: workerCompensationAmount,
+        customerPlan,
+        bookingStatus: booking.status,
+        isPostOnTheWay: isPostOnTheWay(booking),
+        totalAmount: booking.totalAmount,
+        reviewFlag,
+      },
+    });
+
     return { booking: result.updatedBooking, cancellationRecord: result.record };
   },
 
@@ -490,6 +510,23 @@ export const cancellationService = {
     emitToUser(booking.customerId, 'booking_status_update', result.updatedBooking);
     emitToAdmins('admin_refresh', { type: 'cancellation' });
 
+    // Track analytics for business intelligence
+    analyticsService.track('booking_cancelled_by_worker', {
+      userId: workerId,
+      role: 'WORKER',
+      category: booking.serviceCategory,
+      payload: {
+        bookingId,
+        bookingNumber: booking.bookingNumber,
+        reasonCategory,
+        refundAmount,
+        customerPlan,
+        bookingStatus: booking.status,
+        isPostOnTheWay: isPostOnTheWay(booking),
+        totalAmount: booking.totalAmount,
+      },
+    });
+
     return { booking: result.updatedBooking, cancellationRecord: result.record };
   },
 
@@ -621,6 +658,19 @@ export const cancellationService = {
       });
     });
 
+    // Track analytics
+    analyticsService.track('cancellation_fee_waived_by_admin', {
+      userId: adminId,
+      role: 'ADMIN',
+      payload: {
+        bookingId: record.bookingId,
+        recordId,
+        customerId: record.booking.customerId,
+        feeWaived: record.feeAmount,
+        reason,
+      },
+    });
+
     return prisma.cancellationRecord.findUnique({ where: { id: recordId } });
   },
 
@@ -681,6 +731,19 @@ export const cancellationService = {
         resourceId: recordId,
         newValue: { feeAmount: record.feeAmount },
       });
+    });
+
+    // Track analytics
+    analyticsService.track('cancellation_fee_refunded_by_admin', {
+      userId: adminId,
+      role: 'ADMIN',
+      payload: {
+        bookingId: record.bookingId,
+        recordId,
+        customerId: record.booking.customerId,
+        feeRefunded: record.feeAmount,
+        previousStatus: record.feeStatus,
+      },
     });
 
     return prisma.cancellationRecord.findUnique({ where: { id: recordId } });
@@ -788,6 +851,18 @@ export const cancellationService = {
           idempotencyKey: `cancel:recover:${bookingId}`,
         },
       }).catch(() => {});
+    });
+
+    // Track analytics
+    analyticsService.track('cancellation_fee_collected', {
+      userId,
+      role: 'CUSTOMER',
+      payload: {
+        bookingId,
+        feeCollected: collectAmount,
+        totalPendingBeforeCollection: pendingFee,
+        amount: collectAmount,
+      },
     });
 
     return collectAmount;

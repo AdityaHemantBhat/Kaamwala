@@ -897,20 +897,40 @@ model Message {
 
 // ─── Notifications ───────────────────────────────────────
 
-model Notification {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  title     String
-  body      String
-  type      String
-  data      Json?
-  deepLink  String?
-  isRead    Boolean  @default(false)
-  isSilent  Boolean  @default(false)
-  createdAt DateTime @default(now())
+// Notification delivery lifecycle:
+// 1. Created with status=PENDING when sendPushNotification() is called
+// 2. Updated to status=DELIVERED when device acknowledges (via callback or UX signal)
+// 3. Updated to status=FAILED if all retry attempts exhausted
+// 4. OLD deliveries (>30 days) can be purged safely; retryCount prevents unbounded retries
+enum NotificationDeliveryStatus {
+  PENDING       // Created, awaiting first send attempt
+  DELIVERED     // Device acknowledged receipt (user saw it or FCM confirmed)
+  FAILED        // All retries exhausted without delivery signal
+  CANCELLED     // User read notification before device push sent (no need to send)
+}
 
-  @@index([userId, isRead])
+model Notification {
+  id             String                        @id @default(cuid())
+  userId         String
+  user           User                          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title          String
+  body           String
+  type           String
+  data           Json?
+  deepLink       String?
+  isRead         Boolean                       @default(false)
+  isSilent       Boolean                       @default(false)
+  // Push delivery tracking
+  status         NotificationDeliveryStatus    @default(PENDING)
+  retryCount     Int                           @default(0) // Prevents infinite retry loops (max 3)
+  lastRetryAt    DateTime?
+  deliveredAt    DateTime?
+  failureReason  String? // error details for debugging (FCM error code, invalid token, etc.)
+  createdAt      DateTime                      @default(now())
+  updatedAt      DateTime                      @updatedAt
+
+  @@index([userId, isRead, status])
+  @@index([status, createdAt]) // For retry queue sweep
   @@index([createdAt])
 }
 

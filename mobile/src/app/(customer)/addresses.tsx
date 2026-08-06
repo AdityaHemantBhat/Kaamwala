@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, ScrollView, Pressable, Modal, TextInput, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, Pressable, Modal, StyleSheet, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Animated, { FadeInUp } from 'react-native-reanimated';
@@ -10,6 +10,7 @@ import { useT } from '../../utils/i18n';
 import { useToast } from '../../components/ui/ToastProvider';
 import { SkeletonCard } from '../../components/ui/Skeleton';
 import { SkeletonAddressesBody } from '../../components/ui/SkeletonScreenLayouts';
+import { FormInput } from '../../components/ui/FormInput';
 
 const LABELS = ['Home', 'Work', 'Other'] as const;
 const LABEL_COLORS: Record<string, string> = { Home: '#2D3436', Work: '#6C5CE7', Other: '#00B894' };
@@ -257,8 +258,16 @@ export default function AddressesScreen() {
                   </Text>
                   <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#F5F5F5', borderRadius: 12, paddingHorizontal: 14, marginBottom: 12 }}>
                     <MaterialCommunityIcons name="magnify" size={20} color="#9E9E9E" />
-                    <TextInput style={{ flex: 1, paddingVertical: 12, paddingHorizontal: 8, fontFamily: 'Inter_400Regular', fontSize: 14, color: '#0D0D0D' }}
-                      placeholder={t('Search...')} placeholderTextColor="#9E9E9E" value={searchQuery} onChangeText={setSearchQuery} />
+                    <TextInput
+                      style={{ flex: 1, paddingVertical: 12, paddingHorizontal: 8, fontFamily: 'Inter_400Regular', fontSize: 14, color: '#0D0D0D' }}
+                      placeholder={t('Search...')}
+                      placeholderTextColor="#9E9E9E"
+                      value={searchQuery}
+                      onChangeText={setSearchQuery}
+                      keyboardType="default"
+                      autoCapitalize="none"
+                      autoComplete="off"
+                    />
                     {searchQuery.length > 0 && (
                       <Pressable onPress={() => setSearchQuery('')}><MaterialCommunityIcons name="close" size={18} color="#9E9E9E" /></Pressable>
                     )}
@@ -311,23 +320,33 @@ export default function AddressesScreen() {
                       })}
                     </View>
 
-                    <Text style={{ fontFamily: 'Inter_500Medium', fontSize: 12, color: '#6B6B6B', marginBottom: 6 }}>{t('Street Address')} *</Text>
-                    <View style={{ backgroundColor: '#F5F5F5', borderRadius: 12, paddingHorizontal: 14, marginBottom: 14 }}>
-                      <TextInput style={{ paddingVertical: 14, fontFamily: 'Inter_400Regular', fontSize: 14, color: '#0D0D0D' }}
-                        placeholder={t('Street address')} placeholderTextColor="#9E9E9E" value={newLine1} onChangeText={setNewLine1} />
-                    </View>
+                    <FormInput
+                      label={t('Street Address')}
+                      type="text"
+                      required
+                      placeholder={t('Street address')}
+                      value={newLine1}
+                      onChangeText={setNewLine1}
+                      icon="home-outline"
+                    />
 
-                    <Text style={{ fontFamily: 'Inter_500Medium', fontSize: 12, color: '#6B6B6B', marginBottom: 6 }}>{t('Apartment / Building')}</Text>
-                    <View style={{ backgroundColor: '#F5F5F5', borderRadius: 12, paddingHorizontal: 14, marginBottom: 14 }}>
-                      <TextInput style={{ paddingVertical: 14, fontFamily: 'Inter_400Regular', fontSize: 14, color: '#0D0D0D' }}
-                        placeholder={t('Apartment / Building')} placeholderTextColor="#9E9E9E" value={newLine2} onChangeText={setNewLine2} />
-                    </View>
+                    <FormInput
+                      label={t('Apartment / Building')}
+                      type="text"
+                      placeholder={t('Apartment / Building')}
+                      value={newLine2}
+                      onChangeText={setNewLine2}
+                      icon="layers-outline"
+                    />
 
-                    <Text style={{ fontFamily: 'Inter_500Medium', fontSize: 12, color: '#6B6B6B', marginBottom: 6 }}>{t('Landmark')}</Text>
-                    <View style={{ backgroundColor: '#F5F5F5', borderRadius: 12, paddingHorizontal: 14, marginBottom: 14 }}>
-                      <TextInput style={{ paddingVertical: 14, fontFamily: 'Inter_400Regular', fontSize: 14, color: '#0D0D0D' }}
-                        placeholder={t('Landmark')} placeholderTextColor="#9E9E9E" value={newLandmark} onChangeText={setNewLandmark} />
-                    </View>
+                    <FormInput
+                      label={t('Landmark')}
+                      type="text"
+                      placeholder={t('Landmark')}
+                      value={newLandmark}
+                      onChangeText={setNewLandmark}
+                      icon="flag-outline"
+                    />
 
                     <Text style={{ fontFamily: 'Inter_500Medium', fontSize: 12, color: '#6B6B6B', marginBottom: 6 }}>{t('State')} *</Text>
                     <Pressable onPress={openStateSelector} style={{ marginBottom: 14 }}>
@@ -347,18 +366,15 @@ export default function AddressesScreen() {
                       </View>
                     </Pressable>
 
-                    <Text style={{ fontFamily: 'Inter_500Medium', fontSize: 12, color: '#6B6B6B', marginBottom: 6 }}>{t('Pincode')}</Text>
-                    <View style={{ backgroundColor: '#F5F5F5', borderRadius: 12, paddingHorizontal: 14, marginBottom: 20 }}>
-                      <TextInput
-                        style={{ paddingVertical: 14, fontFamily: 'Inter_400Regular', fontSize: 14, color: '#0D0D0D' }}
-                        placeholder={t('e.g. 403001')}
-                        placeholderTextColor="#9E9E9E"
-                        value={pincode}
-                        onChangeText={setPincode}
-                        keyboardType="number-pad"
-                        maxLength={10}
-                      />
-                    </View>
+                    <FormInput
+                      label={t('Pincode')}
+                      type="pincode"
+                      placeholder={t('e.g. 403001')}
+                      value={pincode}
+                      onChangeText={setPincode}
+                      icon="mailbox"
+                      maxLength={10}
+                    />
 
                     <View style={{ flexDirection: 'row', gap: 12 }}>
                       <Pressable onPress={handleAddAddress} disabled={saving || !newLine1 || !selectedState || !selectedCity}
