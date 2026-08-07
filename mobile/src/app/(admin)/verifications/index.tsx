@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, ScrollView, Pressable, RefreshControl, StyleSheet, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -25,41 +25,36 @@ export default function AdminVerifications() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<FilterType>('PENDING_REVIEW');
 
-  const load = async () => {
-    try { 
+  const load = useCallback(async () => {
+    try {
       const params = new URLSearchParams();
       if (statusFilter !== 'all') params.append('status', statusFilter);
       if (search) params.append('search', search);
 
-      const r = await apiClient.get(`/admin/workers/verifications?${params.toString()}`); 
-      setData(r.data?.data || []); 
-    } catch {} finally { 
-      setLoading(false); 
+      const r = await apiClient.get(`/admin/workers/verifications?${params.toString()}`);
+      setData(r.data?.data || []);
+    } catch {} finally {
+      setLoading(false);
       setRefreshing(false);
     }
-  };
-
-  useEffect(() => { 
-    setLoading(true);
-    load(); 
   }, [statusFilter, search]);
 
-  useEffect(() => { 
+  useEffect(() => {
+    setLoading(true);
+    load();
+  }, [load]);
+
+  useEffect(() => {
     socketService.connect();
-    const handleRefresh = (data: any) => { 
-      if (data?.type === 'verification') load(); 
+    const handleRefresh = (data: any) => {
+      if (data?.type === 'verification') load();
     };
     socketService.on('admin_refresh', handleRefresh);
-    
+
     return () => {
       socketService.off('admin_refresh', handleRefresh);
     };
-  }, []);
-
-  const counts = {
-    all: data.length, // Note: This count is post-filter in the API, so it might not reflect the total in the DB if filtered.
-    // Ideally we'd get counts from the backend, but we'll show the filtered list length.
-  };
+  }, [load]);
 
   if (loading && !refreshing && data.length === 0) {
     return (

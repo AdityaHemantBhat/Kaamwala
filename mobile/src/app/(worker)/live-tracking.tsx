@@ -13,7 +13,6 @@ import { SOSButton } from '../../components/ui/SOSButton';
 import { env } from '../../config/env';
 import { startWorkerLocationSharing, stopWorkerLocationSharing } from '../../utils/locationTask';
 import { shouldEmitLocation } from '../../utils/locationThrottle';
-import { getCachedLocation, cacheLocation } from '../../utils/locationCache';
 
 // Interactive map shell. Markers are created/moved in place by the injected
 // window.updateMarkers / window.setDestination calls, so the WebView is mounted
@@ -118,7 +117,7 @@ export default function WorkerLiveTracking() {
   const { showToast } = useToast();
   const insets = useSafeAreaInsets();
 
-  const [workerLoc, setWorkerLoc] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [, setWorkerLoc] = useState<{ latitude: number; longitude: number } | null>(null);
   const [booking, setBooking] = useState<any>(null);
   const [customerPhone, setCustomerPhone] = useState<string | null>(null);
   const [showMap, setShowMap] = useState(false);
@@ -235,7 +234,7 @@ export default function WorkerLiveTracking() {
       stopWorkerLocationSharing();
       socketService.emit('worker:stop_sharing', { bookingId });
     };
-  }, [bookingId, moveWorker, placeDestination]);
+  }, [bookingId, moveWorker, placeDestination, showToast, t]);
 
   const stopSharing = () => {
     stopWorkerLocationSharing();

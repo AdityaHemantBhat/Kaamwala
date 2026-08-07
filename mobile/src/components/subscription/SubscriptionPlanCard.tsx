@@ -5,7 +5,7 @@
  */
 
 import React, { useMemo } from 'react';
-import { View, Text, Pressable, StyleSheet, ViewStyle } from 'react-native';
+import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Animated, { FadeIn, useAnimatedStyle, withTiming, Easing } from 'react-native-reanimated';
 import { SUBSCRIPTION_COLORS, SUBSCRIPTION_STYLES } from './subscriptionConstants';

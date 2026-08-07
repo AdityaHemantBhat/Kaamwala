@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, Image, StyleSheet } from 'react-native';
+import { View, Image, StyleSheet } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -77,7 +77,10 @@ export function BrandLaunchScreen({
     }, total);
 
     return () => clearTimeout(timer);
-  }, [imgReady]);
+    // Shared values are stable refs; onFinish is a plain callback and this is a
+    // mount-once intro animation, so it must not re-run when the callback identity changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [imgReady, reduced, duration, logoOp, logoScale, wordOp, wordY, tagOp, overlayOp]);
 
   const overlayStyle = useAnimatedStyle(() => ({ opacity: overlayOp.value }));
   const logoStyle = useAnimatedStyle(() => ({

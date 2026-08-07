@@ -486,7 +486,7 @@ export default function WorkerProfile() {
                           showToast({ message: t('Category updated'), type: 'success' });
                           setEditModal(null);
                           loadProfile();
-                        } catch (e: any) { showToast({ message: t('Failed'), type: 'error' }); }
+                        } catch { showToast({ message: t('Failed'), type: 'error' }); }
                         finally { setSaving(false); }
                       }}>
                       <Text style={{ fontFamily: 'Inter_400Regular', fontSize: 15, color: '#0D0D0D' }}>{t(cat.replace(/_/g, ' '))}</Text>

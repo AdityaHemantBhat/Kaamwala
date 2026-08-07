@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Modal, TextInput } from 'react-native';
 import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -33,19 +33,19 @@ export default function AdminVerificationDetail() {
     { value: 'OTHER', label: 'Other' },
   ];
 
-  const load = async () => {
-    try { 
-      const r = await apiClient.get(`/admin/workers/verifications/${id}`); 
-      setDetail(r.data?.data); 
+  const load = useCallback(async () => {
+    try {
+      const r = await apiClient.get(`/admin/workers/verifications/${id}`);
+      setDetail(r.data?.data);
     } catch (e: any) {
       showToast({ message: e.message || 'Failed to load details', type: 'error' });
       router.back();
-    } finally { 
-      setLoading(false); 
+    } finally {
+      setLoading(false);
     }
-  };
+  }, [id, router, showToast]);
 
-  useEffect(() => { load(); }, [id]);
+  useEffect(() => { load(); }, [load]);
 
   const handleAction = async (decision: 'APPROVE' | 'REJECT' | 'RESUBMISSION' | 'REVOKE') => {
     if (decision === 'APPROVE' || decision === 'REVOKE') {

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import en from '../translations/en';
 import hi from '../translations/hi';
@@ -48,8 +48,7 @@ const allTranslations: Record<string, Record<string, string>> = {
 
 let currentLang = 'en';
 let currentTranslations: Record<string, string> = en; // Default to English
-let langVersion = 0;
-const listeners: Array<() => void> = [];
+const listeners: (() => void)[] = [];
 
 export async function initI18n() {
   try {
@@ -60,14 +59,12 @@ export async function initI18n() {
       // No saved language - ensure English is loaded
       currentLang = 'en';
       currentTranslations = en;
-      langVersion++;
       listeners.forEach(fn => fn());
     }
   } catch {
     // Fallback to English on error
     currentLang = 'en';
     currentTranslations = en;
-    langVersion++;
     listeners.forEach(fn => fn());
   }
 }
@@ -87,7 +84,6 @@ export function getCurrentLang() {
 export async function setLanguage(code: string) {
   currentLang = code;
   currentTranslations = allTranslations[code] || en; // Fallback to English
-  langVersion++;
   try {
     await AsyncStorage.setItem(LANG_KEY, code);
   } catch {}

@@ -8,7 +8,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { KeyboardAvoidingView, KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { apiClient } from '../../../api/client';
-import { socketService } from '../../../api/socket';
 import { useT } from '../../../utils/i18n';
 
 const ORANGE = '#FF5C00';
@@ -59,7 +58,7 @@ export default function EditJob() {
           setSkills((job.skills || []).join(', '));
           setStatus(job.status || 'ACTIVE');
         }
-      } catch (e) {
+      } catch {
         Alert.alert(t('Error'), t('Failed to load job details'));
         router.back();
       } finally {
@@ -67,7 +66,7 @@ export default function EditJob() {
       }
     }
     loadJob();
-  }, [id]);
+  }, [id, t, router]);
 
   const handleSave = async () => {
     if (!title || title.length < 3) {
@@ -124,7 +123,7 @@ export default function EditJob() {
             try {
               await apiClient.delete(`/jobs/${id}`);
               router.back();
-            } catch (e: any) {
+            } catch {
               Alert.alert(t('Error'), t('Failed to delete'));
               setDeleting(false);
             }

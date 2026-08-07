@@ -98,6 +98,9 @@ export default function ChatScreen() {
       if (warningTimer.current) clearTimeout(warningTimer.current);
       if (tipTimer.current) clearTimeout(tipTimer.current);
     };
+    // tip is set from inside this mount-once socket effect (one-time chat tip);
+    // adding it would re-fetch history and re-subscribe on every tip change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bookingId]);
 
   const sendMessage = () => {

@@ -1,17 +1,15 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import { View, Text, StyleSheet, Pressable, StatusBar } from 'react-native';
 import { useRouter } from 'expo-router';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, withDelay, Easing } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
-import { useLocalSearchParams } from 'expo-router';
 import { useT } from '../../utils/i18n';
 import { BrandMark } from '../../components/ui/BrandMark';
 
 export default function WelcomeScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams();
   const t = useT();
 
   const heroOp = useSharedValue(0);
@@ -48,6 +46,8 @@ export default function WelcomeScreen() {
   // Trigger entry animations on mount
   useEffect(() => {
     handleSplashFinish();
+    // One-shot entry animation; handleSplashFinish is a fresh closure each render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (

@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { View, StyleSheet, Modal } from 'react-native';
+import { StyleSheet, Modal } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -87,7 +87,10 @@ export function TransitionOverlay({
     } else {
       fadeOp.value = withTiming(0, { duration: 200 });
     }
-  }, [visible, type]);
+    // Shared values are stable refs; onComplete is a plain callback prop and the
+    // completion timer is one-shot per show, so don't re-schedule on identity change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, type, fadeOp, textOp, ringPulse]);
 
   const containerStyle = useAnimatedStyle(() => ({ opacity: fadeOp.value }));
   const textStyle = useAnimatedStyle(() => ({ opacity: textOp.value }));

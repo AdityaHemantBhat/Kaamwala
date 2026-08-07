@@ -19,7 +19,7 @@ let notificationHandlerInstalled = false;
 
 // Android channels — one per notification category so users can control sound/
 // importance per type from system settings. Ids match the backend `channelId`.
-const ANDROID_CHANNELS: Array<{ id: string; name: string; importance: number; description: string }> = [
+const ANDROID_CHANNELS: { id: string; name: string; importance: number; description: string }[] = [
   { id: 'urgent', name: 'Urgent', importance: 5, description: 'Urgent requests and urgent-booking updates' },
   { id: 'bookings', name: 'Bookings', importance: 4, description: 'Booking updates and status changes' },
   { id: 'requests', name: 'Requests', importance: 4, description: 'New requests, quotes and offers' },

@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, ScrollView, Pressable, Switch, Modal, FlatList } from 'react-native';
+import { View, Text, ScrollView, Pressable, Modal, FlatList } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -14,8 +14,6 @@ export default function WorkerSettings() {
   const t = useT();
   const router = useRouter();
   const { logout } = useAuthStore();
-  const [notifications, setNotifications] = useState(true);
-  const [soundEnabled, setSoundEnabled] = useState(true);
   const [showLang, setShowLang] = useState(false);
   const [selectedLang, setSelectedLang] = useState(getCurrentLang() || 'en');
 

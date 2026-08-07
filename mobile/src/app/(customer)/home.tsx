@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, ScrollView, Pressable, RefreshControl, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, Pressable, RefreshControl, StyleSheet } from 'react-native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SkeletonCustomerHome } from '../../components/ui/Skeleton';
@@ -15,6 +15,7 @@ import { FeaturedBadge, isFeaturedActive } from '../../components/ui/FeaturedBad
 import { RebookSheet } from '../../components/ui/RebookSheet';
 import { formatMoneyWithSymbol } from '../../utils/money';
 import { socketService } from '../../api/socket';
+import { useRealtimeWalletRefresh } from '../../hooks/useRealtimeWalletRefresh';
 
 const TIER_COLORS: Record<string, string> = { BRONZE: '#8B6B3D', SILVER: '#8A8A8A', GOLD: '#D4A017', PLATINUM: '#E5E4E2' };
 
@@ -75,6 +76,9 @@ export default function CustomerHome() {
       } catch {}
       fetchData();
     })();
+    // fetchData is a plain function recreated every render (closure over `city`);
+    // this mount-only effect must not re-run (and re-request location) each render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function fetchData(cityOverride?: string) {
@@ -84,6 +88,12 @@ export default function CustomerHome() {
     } catch {}
     finally { setLoading(false); setRefreshing(false); }
   }
+
+  // Realtime wallet + loyalty: a top-up / wallet payment / refund notification
+  // (socket or foreground push) refetches /home so the wallet card and points
+  // stay in sync without a manual pull-to-refresh. The wrapper always calls the
+  // latest closure, so the resolved city is respected.
+  useRealtimeWalletRefresh(() => fetchData());
 
   const h = new Date().getHours();
   const greeting = h < 12 ? t('Good morning') : h < 17 ? t('Good afternoon') : t('Good evening');

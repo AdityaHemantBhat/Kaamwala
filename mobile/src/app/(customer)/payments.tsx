@@ -4,7 +4,7 @@ import { KeyboardAvoidingView, KeyboardAwareScrollView } from 'react-native-keyb
 import { Colors } from '../../constants/colors';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useT } from '../../utils/i18n';
 import { PaymentIcon } from '../../components/ui/PaymentIcons';
 import { useToast } from '../../components/ui/ToastProvider';
@@ -14,6 +14,8 @@ import { getTransactionMeta, formatSignedINR } from '../../utils/transactionMeta
 import { SkeletonWalletPaymentsBody } from '../../components/ui/SkeletonScreenLayouts';
 import { env } from '../../config/env';
 import { formatMoneyWithSymbol, parseMoneyInput } from '../../utils/money';
+import { startCashfreePayment, isUserCancellation } from '../../utils/cashfree';
+import { useRealtimeWalletRefresh } from '../../hooks/useRealtimeWalletRefresh';
 
 const QUICK_AMOUNTS = [500, 1000, 2000, 5000];
 
@@ -21,12 +23,12 @@ const QUICK_AMOUNTS = [500, 1000, 2000, 5000];
  * Only the app package name and display metadata live here — the merchant
  * UPI address and payee name are resolved at runtime from env config so they
  * can be changed per deployment without a code change. */
-const QUICK_PAY_APPS: Array<{
+const QUICK_PAY_APPS: {
   name: string;
   iconKey: 'googlePay' | 'phonePe' | 'paytm' | 'bhim';
   bg: string;
   pkg: string;
-}> = [
+}[] = [
   { name: 'Google Pay', iconKey: 'googlePay', bg: '#E8F0FE', pkg: 'com.google.android.apps.nbu.paisa.user' },
   { name: 'PhonePe',    iconKey: 'phonePe',   bg: '#F0EBF8', pkg: 'com.phonepe.app' },
   { name: 'Paytm',      iconKey: 'paytm',     bg: '#E8F8FE', pkg: 'net.one97.paytm' },
@@ -53,6 +55,11 @@ export default function PaymentsScreen() {
 
   useEffect(() => { loadData(); }, []);
 
+  // Realtime wallet + ledger: a top-up / wallet payment / refund notification
+  // (socket or foreground push) refetches the balance and transactions so the
+  // screen stays in sync without a pull-to-refresh.
+  useRealtimeWalletRefresh(loadData);
+
   async function loadData() {
     try {
       const [homeRes, txnRes] = await Promise.all([
@@ -77,7 +84,6 @@ export default function PaymentsScreen() {
       if (!order?.orderId) throw new Error(t('Failed to initialize payment'));
 
       // 2. Launch the Cashfree checkout (native SDK, or mock alert in Expo Go).
-      const { startCashfreePayment, isUserCancellation } = require('../../utils/cashfree');
       const paymentResult = await startCashfreePayment(order.paymentSessionId, order.orderId);
 
       // Backing out of checkout is expected (nothing charged); a real gateway

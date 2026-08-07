@@ -77,7 +77,7 @@ export default function WorkerLayout() {
       socketService.off('urgent_offer_increased', urgentOfferIncreaseHandler);
       sub.remove();
     };
-  }, []);
+  }, [showBanner]);
 
   const handleAccept = async () => {
     if (!incomingBooking) return;
@@ -102,7 +102,7 @@ export default function WorkerLayout() {
     try {
       await apiClient.patch(`/bookings/${incomingBooking.id}/status`, { status: 'CANCELLED', reasonCategory: 'OTHER', cancelReason: 'Worker rejected' });
       setIncomingBooking(null);
-    } catch (e: any) {
+    } catch {
       showToast({ message: t('Failed to reject'), type: 'error' });
     } finally {
       setActionLoading(false);
@@ -113,7 +113,7 @@ export default function WorkerLayout() {
     if (!urgentRequest) return;
     setActionLoading(true);
     try {
-      const res = await apiClient.post('/urgent/accept', { requestId: urgentRequest.requestId, offerVersion: urgentRequest.offerVersion });
+      await apiClient.post('/urgent/accept', { requestId: urgentRequest.requestId, offerVersion: urgentRequest.offerVersion });
       showToast({ message: t('Urgent booking secured!'), type: 'success' });
       setUrgentRequest(null);
       setTimeout(() => {

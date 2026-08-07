@@ -39,7 +39,7 @@ export default function UrgentBookingScreen() {
   const [description, setDescription] = useState<string>('');
   const [issues, setIssues] = useState<any[]>([]); // What's Happening? options from backend
   const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null);
-  const [pricingModel, setPricingModel] = useState<'PER_HOUR' | 'FLAT'>('FLAT');
+  const [pricingModel] = useState<'PER_HOUR' | 'FLAT'>('FLAT');
   const [urgentImage, setUrgentImage] = useState<any>(null); // { uri, remoteUrl? }
   const [uploadingImg, setUploadingImg] = useState(false);
 
@@ -83,7 +83,7 @@ export default function UrgentBookingScreen() {
       socketService.off('urgent_accepted', handleAccepted); 
       socketService.off('urgent_offer_increased', handleOfferIncreased); 
     };
-  }, [activeRequestId]);
+  }, [activeRequestId, router, showToast, t]);
 
   // Countdown timer — only depends on isSearching/timeLeft
   useEffect(() => {
@@ -114,7 +114,7 @@ export default function UrgentBookingScreen() {
     } else {
       pulseAnim.setValue(1);
     }
-  }, [isSearching]);
+  }, [isSearching, pulseAnim]);
 
   // Fetch "What's Happening?" issues when category changes (from backend taxonomy)
   useEffect(() => {
@@ -199,7 +199,7 @@ export default function UrgentBookingScreen() {
     if (activeRequestId) {
       try {
         await apiClient.post('/urgent/cancel', { requestId: activeRequestId });
-      } catch (e) {}
+      } catch {}
       setActiveRequestId(null);
       setPreviewData(null);
     }

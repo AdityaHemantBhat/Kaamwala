@@ -2,14 +2,15 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { FeaturedBadge, isFeaturedActive } from '../../components/ui/FeaturedBadge';
+import { isFeaturedActive } from '../../components/ui/FeaturedBadge';
 import { useToast } from '../../components/ui/ToastProvider';
 import { SkeletonSubscriptionPlansBody } from '../../components/ui/SkeletonScreenLayouts';
 import { apiClient } from '../../api/client';
 import { useRouter } from 'expo-router';
 import { useT } from '../../utils/i18n';
 import { SubscriptionPlanCard } from '../../components/subscription/SubscriptionPlanCard';
-import { WORKER_PLAN_DETAILS, SUBSCRIPTION_COLORS, SUBSCRIPTION_STYLES } from '../../components/subscription/subscriptionConstants';
+import { SUBSCRIPTION_COLORS } from '../../components/subscription/subscriptionConstants';
+import { startCashfreePayment, isUserCancellation } from '../../utils/cashfree';
 
 export default function WorkerSubscription() {
   const router = useRouter();
@@ -64,7 +65,7 @@ export default function WorkerSubscription() {
         setSelected(subRes.data?.data?.plan || 'FREE');
         setIsFeatured(!!profileRes.data?.data?.isFeatured);
         setFeaturedUntil(profileRes.data?.data?.featuredUntil || null);
-      } catch (e) {}
+      } catch {}
       finally {
         setLoading(false);
       }
@@ -81,7 +82,6 @@ export default function WorkerSubscription() {
       const order = orderRes.data?.data;
       if (!order?.orderId) throw new Error('No order');
 
-      const { startCashfreePayment, isUserCancellation } = require('../../utils/cashfree');
       const paymentResult = await startCashfreePayment(order.paymentSessionId, order.orderId);
 
       if (paymentResult.status === 'SUCCESS') {
@@ -142,7 +142,6 @@ export default function WorkerSubscription() {
       const order = orderRes.data?.data;
       if (!order?.orderId) throw new Error('No order');
 
-      const { startCashfreePayment, isUserCancellation } = require('../../utils/cashfree');
       const paymentResult = await startCashfreePayment(order.paymentSessionId, order.orderId);
 
       if (paymentResult.status === 'SUCCESS') {
@@ -188,7 +187,7 @@ export default function WorkerSubscription() {
       setCurrent('FREE');
       setSelected('FREE');
       showToast({ message: t('Subscription cancelled.'), type: 'success' });
-    } catch (e: any) {
+    } catch {
       showToast({ message: t('Failed to cancel'), type: 'error' });
     } finally {
       setProcessing(false);

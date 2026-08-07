@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, RefreshControl, Platform
+  View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, RefreshControl
 } from 'react-native';
 import { Image } from 'expo-image';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -8,7 +8,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { apiClient } from '../../api/client';
 import { useAuthStore } from '../../store/auth.store';
-import Animated, { FadeIn, FadeInDown, SlideInDown, useAnimatedStyle, withSpring, useSharedValue, withTiming } from 'react-native-reanimated';
+import Animated, { FadeInDown, SlideInDown, useAnimatedStyle, withSpring, useSharedValue } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useT } from '../../utils/i18n';
 
@@ -36,13 +36,12 @@ const PodiumSpot = ({ worker, rank, metric, isMe }: { worker: any, rank: number,
   const t = useT();
   const isFirst = rank === 1;
   const isSecond = rank === 2;
-  const isThird = rank === 3;
-  
+
   const heightVal = useSharedValue(0);
-  
+
   useEffect(() => {
     heightVal.value = withSpring(isFirst ? 140 : isSecond ? 110 : 90, { damping: 12 });
-  }, [rank]);
+  }, [rank, heightVal, isFirst, isSecond]);
 
   const animatedStyle = useAnimatedStyle(() => ({
     height: heightVal.value,

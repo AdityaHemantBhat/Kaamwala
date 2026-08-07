@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, Pressable, TextInput, RefreshControl, StyleSheet, ActivityIndicator } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, Pressable, TextInput, StyleSheet, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -29,9 +29,7 @@ export default function SuperAdminPanel() {
   const [broadExpires, setBroadExpires] = useState('');
   const [payConfig, setPayConfig] = useState<any>(null);
 
-  useEffect(() => { loadAll(); }, [activeTab]);
-
-  async function loadAll() {
+  const loadAll = useCallback(async () => {
     setLoading(true);
     try {
       if (activeTab === 'admins') {
@@ -49,7 +47,9 @@ export default function SuperAdminPanel() {
       }
     } catch {}
     finally { setLoading(false); }
-  }
+  }, [activeTab]);
+
+  useEffect(() => { loadAll(); }, [loadAll]);
 
   const makeAdmin = async () => {
     if (!newPhone || newPhone.length < 10) return;
@@ -79,7 +79,7 @@ export default function SuperAdminPanel() {
       await apiClient.delete(`/admin/banned-ips/${ip}`);
       showToast({ message: t('IP unbanned successfully'), type: 'success' });
       loadAll();
-    } catch (e: any) {
+    } catch {
       showToast({ message: t('Failed to unban IP'), type: 'error' });
     }
   };

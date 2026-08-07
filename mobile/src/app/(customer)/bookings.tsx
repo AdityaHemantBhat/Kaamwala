@@ -16,19 +16,17 @@ import {
 import { KeyboardAvoidingView, KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import { t, useT } from '../../utils/i18n';
+import { useRouter } from 'expo-router';
+import { useT } from '../../utils/i18n';
 import { useBookingStore } from '../../store/booking.store';
 import Animated, { FadeInUp } from 'react-native-reanimated';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { Colors } from '../../constants/colors';
-import { Typography } from '../../constants/typography';
 import { apiClient } from '../../api/client';
 import { useToast } from '../../components/ui/ToastProvider';
-import { SkeletonCard } from '../../components/ui/Skeleton';
 import { SkeletonCustomerBookingsBody } from '../../components/ui/SkeletonScreenLayouts';
 import BookingAddressPicker from '../../components/ui/BookingAddressPicker';
 import { formatMoneyWithSymbol } from '../../utils/money';
+import { startCashfreePayment, isUserCancellation } from '../../utils/cashfree';
 import LottieView from 'lottie-react-native';
 import { socketService } from '../../api/socket';
 
@@ -53,13 +51,6 @@ interface Booking {
   price: number;
   type?: string;
   cancelRequestStatus?: string;
-}
-
-interface StatusStyle {
-  label: string;
-  icon: keyof typeof MaterialCommunityIcons.glyphMap;
-  color: string;
-  bg: string;
 }
 
 // ─── Status & Category configuration ──────────────────────────────────────
@@ -182,7 +173,7 @@ export default function CustomerBookings() {
   const [bookModalVisible, setBookModalVisible] = useState(false);
   const [selectedWorker, setSelectedWorker] = useState<any>(null);
   const [selectedService, setSelectedService] = useState<any>(null);
-  const [bookingDate, setBookingDate] = useState<Date>(new Date());
+  const [bookingDate] = useState<Date>(new Date());
   const [creatingBooking, setCreatingBooking] = useState(false);
   // Service location — the customer picks the exact address the worker will
   // navigate to. Defaults to their saved default address.
@@ -289,7 +280,7 @@ export default function CustomerBookings() {
     } catch (e: any) {
       showToast({ message: e?.response?.data?.error || t('Failed to respond'), type: 'error' });
     } finally { setRespondingChangeId(null); }
-  }, [fetchBookings]);
+  }, [fetchBookings, showToast, t]);
 
   const fetchProfile = useCallback(async () => {
     try {
@@ -315,14 +306,14 @@ export default function CustomerBookings() {
     return () => {
       socketService.off('booking_status_update', handleStatusUpdate);
     };
-  }, [fetchBookings]);
+  }, [fetchBookings, fetchProfile, cancelModal.booking?.id]);
 
   useEffect(() => {
     const pendingBooking = bookings.find(b => b.cancelRequestStatus === 'PENDING_CUSTOMER');
     if (pendingBooking && !cancelModal.visible) {
       setCancelModal({ visible: true, booking: pendingBooking });
     }
-  }, [bookings]);
+  }, [bookings, cancelModal.visible]);
 
   const handleCancelBooking = useCallback(async () => {
     if (!cancelModal.booking) return;
@@ -341,7 +332,7 @@ export default function CustomerBookings() {
     } catch (e: any) {
       showToast({ message: e?.response?.data?.error || t('Failed to cancel'), type: 'error' });
     } finally { setCancelling(false); }
-  }, [cancelModal.booking, cancelCategory, cancelReason, fetchBookings]);
+  }, [cancelModal.booking, cancelCategory, cancelReason, fetchBookings, showToast, t]);
 
   // Fetch pending cancellation fee (shown as a banner on the list)
   useEffect(() => {
@@ -373,7 +364,7 @@ export default function CustomerBookings() {
         setCancelPreview(null);
       }
     })();
-  }, [cancelModal.visible, cancelModal.booking?.id]);
+  }, [cancelModal.visible, cancelModal.booking?.id, cancelModal.booking.cancelRequestStatus]);
 
   // ── Derived state ──────────────────────────────────────────────────────
 
@@ -638,7 +629,7 @@ export default function CustomerBookings() {
         </Animated.View>
       );
     },
-    [router, respondToChange, respondingChangeId]
+    [router, respondToChange, respondingChangeId, STATUS_STYLE, t]
   );
 
   const renderEmptyState = () => (
@@ -934,7 +925,6 @@ export default function CustomerBookings() {
                   const order = orderRes.data?.data;
                   if (!order?.orderId) throw new Error(t('Failed to initialize payment'));
 
-                  const { startCashfreePayment, isUserCancellation } = require('../../utils/cashfree');
                   const paymentResult = await startCashfreePayment(order.paymentSessionId, order.orderId);
 
                   if (paymentResult.status === 'SUCCESS') {

@@ -3,6 +3,7 @@ import { prisma } from '../config/prisma';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { sendResponse, sendError } from '../utils/response';
 import { emitToAdmins } from '../services/socket.service';
+import { notificationService } from '../services/notification.service';
 import { guardAmount } from '../utils/money';
 
 export const workerEarningsController = {
@@ -149,6 +150,15 @@ export const workerEarningsController = {
       if (!result.ok) return sendError(res, result.code, result.error);
 
       emitToAdmins('admin_refresh', { type: 'withdrawal' });
+
+      // Mirror the customer withdrawal path (payment.controller) so the worker's
+      // dashboard + earnings refresh in realtime after a withdrawal too.
+      await notificationService.sendPushNotification(
+        userId, 'Withdrawal Initiated',
+        `Your withdrawal of ₹${withdrawalAmount.toLocaleString('en-IN')} has been submitted and will be processed shortly.`,
+        'withdrawal', { amount: withdrawalAmount, method },
+      );
+
       sendResponse(res, 201, result.withdrawal, `₹${withdrawalAmount} withdrawal requested via ${method}`);
     } catch (e: any) { sendError(res, 500, e.message); }
   },

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, Pressable, StyleSheet, TextInput, Alert, ActivityIndicator } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -23,7 +23,7 @@ export default function CreateDisputeScreen() {
   const [evidenceUrls, setEvidenceUrls] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     try {
       const r = await apiClient.get(`/bookings/${bookingId}`);
       setBooking(r.data?.data);
@@ -33,9 +33,9 @@ export default function CreateDisputeScreen() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [bookingId, router, showToast]);
 
-  useEffect(() => { load(); }, [bookingId]);
+  useEffect(() => { load(); }, [load]);
 
   const handleSubmit = async () => {
     if (!reason.trim()) {

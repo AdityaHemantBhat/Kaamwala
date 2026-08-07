@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, StyleSheet, Pressable, Modal, TextInput, Switch, Alert, ActivityIndicator } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, ScrollView, StyleSheet, Pressable, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -16,15 +16,15 @@ export default function AdminAuditTimeline() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     try {
       const res = await apiClient.get(`/admin/users/${userId}/audit`);
       setData(res.data?.data);
-    } catch (e) {
+    } catch {
     } finally {
       setLoading(false);
     }
-  };
+  }, [userId]);
 
   const [showBanModal, setShowBanModal] = useState(false);
   const [acting, setActing] = useState(false);
@@ -56,7 +56,7 @@ export default function AdminAuditTimeline() {
     }
   };
 
-  useEffect(() => { load(); }, [userId]);
+  useEffect(() => { load(); }, [load]);
 
   if (loading) return <SafeAreaView style={styles.safe} edges={['top']}><View style={styles.center}><BrutalInkLoader /></View></SafeAreaView>;
   if (!data) return <SafeAreaView style={styles.safe} edges={['top']}><View style={styles.center}><Text>{t('Failed to load audit logs.')}</Text></View></SafeAreaView>;

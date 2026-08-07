@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, ScrollView, Pressable, RefreshControl, StyleSheet, TextInput, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
@@ -23,7 +23,7 @@ export default function AdminIssues() {
   const [showCreate, setShowCreate] = useState(false);
   const [newIssue, setNewIssue] = useState({ canonicalId: '', label: '', category: 'PLUMBER', aliases: '' });
 
-  const load = async () => {
+  const load = useCallback(async () => {
     try {
       let r;
       if (tab === 'candidates') {
@@ -38,9 +38,9 @@ export default function AdminIssues() {
       }
       setData(r.data?.data || []);
     } catch {} finally { setLoading(false); setRefreshing(false); }
-  };
+  }, [tab, category]);
 
-  useEffect(() => { load(); }, [tab, category]);
+  useEffect(() => { load(); }, [load]);
 
   const setLifecycle = async (id: string, lifecycle: string) => {
     try { await apiClient.patch(`/issues/admin/${id}/lifecycle`, { lifecycle }); load(); } catch {}

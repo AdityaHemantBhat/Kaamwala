@@ -55,7 +55,11 @@ let CFThemeBuilder: any = null;
 let CFDropCheckoutPayment: any = null;
 
 try {
+  // Lazy require so a missing native SDK is caught, not a crash.
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const sdk = require('react-native-cashfree-pg-sdk');
+  // Lazy require so a missing native SDK is caught, not a crash.
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const contract = require('cashfree-pg-api-contract');
 
   // The SDK's JS loads even when the native module isn't linked (Expo Go or a

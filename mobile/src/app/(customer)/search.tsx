@@ -18,7 +18,6 @@ import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { useT } from '../../utils/i18n';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Colors } from '../../constants/colors';
 import { FeaturedBadge, isFeaturedActive } from '../../components/ui/FeaturedBadge';
 import { apiClient } from '../../api/client';
 
@@ -141,7 +140,7 @@ export default function SearchScreen() {
         }
       }
     },
-    [],
+    [t],
   );
 
   // The route param can resolve after the first render — keep the chip in sync
@@ -372,7 +371,7 @@ export default function SearchScreen() {
         </Pressable>
       );
     },
-    [handleWorkerPress],
+    [handleWorkerPress, t],
   );
 
   // ── Empty State ──────────────────────────────────────────────────────────
@@ -407,7 +406,7 @@ export default function SearchScreen() {
         )}
       </View>
     );
-  }, [searchQuery, selectedCategory]);
+  }, [searchQuery, selectedCategory, t]);
 
   // ── Error State ──────────────────────────────────────────────────────────
   const renderErrorState = useCallback(
@@ -432,7 +431,7 @@ export default function SearchScreen() {
         </Pressable>
       </View>
     ),
-    [error, fetchWorkers, searchQuery, selectedCategory],
+    [error, fetchWorkers, searchQuery, selectedCategory, t],
   );
 
   // ── Results Header ───────────────────────────────────────────────────────
@@ -453,7 +452,7 @@ export default function SearchScreen() {
           <View style={styles.resultsCountLine} />
         </View>
       ) : null,
-    [loading, error, workers.length],
+    [loading, error, workers.length, t],
   );
 
   // ── Skeleton Loading ─────────────────────────────────────────────────────

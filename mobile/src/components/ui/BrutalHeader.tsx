@@ -4,7 +4,6 @@ import { Colors } from '../../constants/colors';
 import { Typography } from '../../constants/typography';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useT } from '../../utils/i18n';
 
 interface BrutalHeaderProps {
@@ -16,7 +15,6 @@ interface BrutalHeaderProps {
 export function BrutalHeader({ title, showBack = true, onBack }: BrutalHeaderProps) {
   const t = useT();
   const router = useRouter();
-  const insets = useSafeAreaInsets();
 
   const handleBack = () => {
     if (onBack) onBack();

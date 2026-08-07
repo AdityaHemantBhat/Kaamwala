@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { View, Text, TextInput, Pressable, ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
@@ -25,31 +25,31 @@ export default function UserTicketDetail() {
   const [sending, setSending] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     try {
       const r = await apiClient.get(`/support/${id}`);
       setTicket(r.data?.data);
-    } catch (e) {
+    } catch {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id]);
 
-  useEffect(() => { 
-    load(); 
-    
+  useEffect(() => {
+    load();
+
     socketService.connect();
     const handleReply = (data: any) => {
       if (String(data.ticketId) === String(id)) {
         load();
       }
     };
-    
+
     socketService.on('ticket_reply', handleReply);
     return () => {
       socketService.off('ticket_reply', handleReply);
     };
-  }, [id]);
+  }, [id, load]);
 
   const pickImage = async () => {
     let result = await ImagePicker.launchImageLibraryAsync({
@@ -89,7 +89,7 @@ export default function UserTicketDetail() {
       setMessage('');
       setSelectedImage(null);
       load();
-    } catch (e) {
+    } catch {
     } finally {
       setSending(false);
     }

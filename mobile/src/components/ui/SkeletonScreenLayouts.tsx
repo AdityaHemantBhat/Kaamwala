@@ -3,7 +3,6 @@ import { View, StyleSheet, ScrollView } from 'react-native';
 import { Skeleton } from './Skeleton';
 
 const CARD = '#FFFFFF';
-const BG = '#F5F0E8';
 const BORDER = '#F0EBE0';
 
 /** Back button + title row (worker profile, payments, etc.) */

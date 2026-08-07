@@ -243,7 +243,7 @@ export default function PostRequest() {
   const [scopeConfig, setScopeConfig] = useState<any>(null);
   const [scopeValues, setScopeValues] = useState<Record<string, any>>({});
   const [recommendation, setRecommendation] = useState<any>(null);
-  const [recommendationLoading, setRecommendationLoading] = useState(false);
+  const [, setRecommendationLoading] = useState(false);
   const [quoteCounter, setQuoteCounter] = useState<{ interestId: string; workerName: string } | null>(null);
   const [counterAmount, setCounterAmount] = useState('');
   const [counterSending, setCounterSending] = useState(false);
@@ -331,7 +331,7 @@ export default function PostRequest() {
 
   useEffect(() => {
     loadRequests();
-  }, []);
+  }, [loadRequests]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -560,28 +560,6 @@ export default function PostRequest() {
           numberOfLines={1}
         >
           {t(cat.label)}
-        </Text>
-      </Pressable>
-    );
-  };
-
-  // ── Render: Budget Type Toggle ──
-
-  const renderBudgetType = (bt: typeof BUDGET_TYPES[number]) => {
-    const active = budgetType === bt.key;
-    return (
-      <Pressable
-        key={bt.key}
-        style={[styles.budgetTypeBtn, active && styles.budgetTypeBtnActive]}
-        onPress={() => setBudgetType(bt.key)}
-      >
-        <MaterialCommunityIcons
-          name={bt.icon}
-          size={14}
-          color={active ? '#FFFFFF' : C.inkFaint}
-        />
-        <Text style={[styles.budgetTypeLabel, active && styles.budgetTypeLabelActive]}>
-          {t(bt.label)}
         </Text>
       </Pressable>
     );

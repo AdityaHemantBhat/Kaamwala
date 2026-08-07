@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, Dimensions, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Alert } from 'react-native';
 import { Image } from 'expo-image';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -9,9 +9,6 @@ import * as ImagePicker from 'expo-image-picker';
 import { useToast } from '../../components/ui/ToastProvider';
 import { SkeletonPortfolioBody } from '../../components/ui/SkeletonScreenLayouts';
 import { useT } from '../../utils/i18n';
-
-const SCREEN_WIDTH = Dimensions.get('window').width;
-const IMG_SIZE = SCREEN_WIDTH - 48;
 
 export default function WorkerPortfolio() {
   const router = useRouter();
@@ -28,7 +25,7 @@ export default function WorkerPortfolio() {
     try {
       const res = await apiClient.get('/workers/portfolio');
       setPhotos(res.data?.data || []);
-    } catch (e) {  }
+    } catch {  }
     finally { setLoading(false); }
   }
 

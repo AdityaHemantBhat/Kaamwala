@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, Pressable, StatusBar, ScrollView } from 'react-
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import Animated, { useSharedValue, useAnimatedStyle, withTiming, withDelay, Easing } from 'react-native-reanimated';
+import Animated, { useSharedValue, useAnimatedStyle, withTiming, Easing } from 'react-native-reanimated';
 import { setLanguage, useT } from '../../utils/i18n';
 import { useAuthStore } from '../../store/auth.store';
 import { INDIAN_LANGUAGES } from '../../utils/languages';
@@ -25,6 +25,8 @@ export default function LanguageSelectScreen() {
 
   React.useEffect(() => {
     handleSplashFinish();
+    // One-shot entry animation; handleSplashFinish is a fresh closure each render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const contentStyle = useAnimatedStyle(() => ({

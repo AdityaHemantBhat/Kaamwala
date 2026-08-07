@@ -34,7 +34,7 @@ export const StatusTracker: React.FC<StatusTrackerProps> = ({ currentStatus }) =
       duration: 800,
       easing: Easing.inOut(Easing.ease),
     });
-  }, [safeIndex]);
+  }, [safeIndex, progress]);
 
   const progressStyle = useAnimatedStyle(() => {
     return {

@@ -1,13 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, Pressable, RefreshControl, StyleSheet, Dimensions } from 'react-native';
+import { View, Text, ScrollView, Pressable, RefreshControl, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { BrutalInkLoader } from '../../components/ui/BrutalInkLoader';
 import { apiClient } from '../../api/client';
 import { useT } from '../../utils/i18n';
-
-const { width } = Dimensions.get('window');
 
 export default function AdminRevenue() {
   const t = useT();

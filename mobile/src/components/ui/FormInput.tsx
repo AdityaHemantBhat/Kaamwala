@@ -12,14 +12,13 @@
  * - Accessible and keyboard-aware
  */
 
-import React, { ReactNode } from 'react';
+import React from 'react';
 import {
   TextInput as RNTextInput,
   View,
   Text,
   StyleSheet,
   TextInputProps,
-  Platform,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 

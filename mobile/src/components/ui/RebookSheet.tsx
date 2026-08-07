@@ -117,7 +117,10 @@ export function RebookSheet({ visible, source, onClose, onSuccess }: RebookSheet
     return () => {
       cancelled = true;
     };
-  }, [visible, source?.id]);
+    // onClose is a plain callback prop; reload must happen once per sheet open,
+    // not on every render where the callback identity may change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, source, showToast, t]);
 
   // Reset transient state when the sheet closes.
   useEffect(() => {

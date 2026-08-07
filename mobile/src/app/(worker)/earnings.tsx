@@ -11,6 +11,8 @@ import { useT } from '../../utils/i18n';
 import { getTransactionMeta, formatSignedINR, groupByDay, TransactionRow } from '../../utils/transactionMeta';
 import { SkeletonWorkerEarnings } from '../../components/ui/Skeleton';
 import { formatMoneyWithSymbol } from '../../utils/money';
+import { useRealtimeWalletRefresh } from '../../hooks/useRealtimeWalletRefresh';
+import { startCashfreePayment, isUserCancellation } from '../../utils/cashfree';
 
 export default function WorkerEarnings() {
   const router = useRouter();
@@ -51,7 +53,12 @@ export default function WorkerEarnings() {
     setRefreshing(false);
   }, []);
 
-  useEffect(() => { loadData(); }, []);
+  useEffect(() => { loadData(); }, [loadData]);
+
+  // Realtime wallet + ledger: a payment received / top-up / refund / withdrawal
+  // notification (socket or foreground push) refetches the balance and
+  // transactions so the screen stays in sync without a pull-to-refresh.
+  useRealtimeWalletRefresh(loadData);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
@@ -97,7 +104,6 @@ export default function WorkerEarnings() {
       if (!order?.orderId) throw new Error('Failed to initialize payment');
 
       // 2. Launch the Cashfree checkout (native SDK, or mock alert in Expo Go).
-      const { startCashfreePayment, isUserCancellation } = require('../../utils/cashfree');
       const paymentResult = await startCashfreePayment(order.paymentSessionId, order.orderId);
 
       // Backing out of checkout is expected (nothing charged); a real gateway

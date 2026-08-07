@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator , Modal, TextInput } from 'react-native';
 import { SkeletonWorkerBrowseRequests } from '../../components/ui/Skeleton';
 import { Image } from 'expo-image';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -10,7 +10,6 @@ import { apiClient } from '../../api/client';
 import { socketService } from '../../api/socket';
 import { useRouter } from 'expo-router';
 import { useT } from '../../utils/i18n';
-import { Modal, TextInput } from 'react-native';
 import * as Location from 'expo-location';
 
 const CATEGORIES = [
@@ -35,25 +34,7 @@ export default function BrowseRequests() {
   const [quoteMessage, setQuoteMessage] = useState('');
   const [quoteSending, setQuoteSending] = useState(false);
 
-  useEffect(() => {
-    loadRequests();
-    // Load worker's commission rate to show expected earnings
-    (async () => {
-      try {
-        const res = await apiClient.get('/workers/subscription/my');
-        setCommissionPercent(Number(res.data?.data?.commission) || 15);
-      } catch {}
-    })();
-  }, [filterCat]);
-
-  // Realtime delivery of new open requests
-  useEffect(() => {
-    const cb = () => loadRequests();
-    socketService.on('request_matched', cb);
-    return () => socketService.off('request_matched', cb);
-  }, []);
-
-  async function loadRequests() {
+  const loadRequests = useCallback(async () => {
     setLoading(true);
     try {
       const params: any = {};
@@ -71,17 +52,35 @@ export default function BrowseRequests() {
       } catch {}
       const res = await apiClient.get('/requests/browse', { params });
       setRequests(res.data?.data || []);
-    } catch (e) {
+    } catch {
     } finally {
       setLoading(false);
     }
-  }
+  }, [filterCat]);
+
+  useEffect(() => {
+    loadRequests();
+    // Load worker's commission rate to show expected earnings
+    (async () => {
+      try {
+        const res = await apiClient.get('/workers/subscription/my');
+        setCommissionPercent(Number(res.data?.data?.commission) || 15);
+      } catch {}
+    })();
+  }, [filterCat, loadRequests]);
+
+  // Realtime delivery of new open requests
+  useEffect(() => {
+    const cb = () => loadRequests();
+    socketService.on('request_matched', cb);
+    return () => socketService.off('request_matched', cb);
+  }, [loadRequests]);
 
   const handleInterest = async (id: string) => {
     try {
       await apiClient.post(`/requests/${id}/interest`);
       showToast({ message: t('Interest sent! Customer notified.'), type: 'success' });
-    } catch (e) {
+    } catch {
       showToast({ message: t('Failed to send interest'), type: 'error' });
     }
   };

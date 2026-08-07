@@ -28,7 +28,7 @@ export default function AdminDashboard() {
       ]);
       setStats(s.data?.data || {});
       setVerifications(v.data?.data || []);
-    } catch (e) {  }
+    } catch {  }
     finally { setLoading(false); setRefreshing(false); }
   }, []);
 

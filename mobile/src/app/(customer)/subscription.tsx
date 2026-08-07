@@ -1,15 +1,15 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { View, Text, ScrollView, Pressable, ActivityIndicator, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import * as WebBrowser from 'expo-web-browser';
+import { router } from 'expo-router';
 import { useToast } from '../../components/ui/ToastProvider';
 import { SkeletonSubscriptionPlansBody } from '../../components/ui/SkeletonScreenLayouts';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import Animated, { FadeIn } from 'react-native-reanimated';
-import { t, useT } from '../../utils/i18n';
+import { useT } from '../../utils/i18n';
 import { apiClient } from '../../api/client';
+import { startCashfreePayment, isUserCancellation } from '../../utils/cashfree';
 import { SubscriptionPlanCard } from '../../components/subscription/SubscriptionPlanCard';
-import { CUSTOMER_PLANS, SUBSCRIPTION_COLORS, SUBSCRIPTION_STYLES } from '../../components/subscription/subscriptionConstants';
+import { CUSTOMER_PLANS, SUBSCRIPTION_COLORS } from '../../components/subscription/subscriptionConstants';
 
 export default function SubscriptionScreen() {
   const t = useT();
@@ -61,7 +61,6 @@ export default function SubscriptionScreen() {
       }
 
       // 2. Launch the real Cashfree checkout (requires native SDK / development build).
-      const { startCashfreePayment, isUserCancellation } = require('../../utils/cashfree');
       const paymentResult = await startCashfreePayment(order.paymentSessionId, order.orderId);
 
       // Nothing is charged unless the SDK reports SUCCESS. Backing out of the
@@ -157,7 +156,7 @@ export default function SubscriptionScreen() {
       <View style={headerStyles.container}>
         <Pressable onPress={() => {
           try {
-            require('expo-router').router.back();
+            router.back();
           } catch {}
         }} style={headerStyles.backBtn}>
           <MaterialCommunityIcons name="arrow-left" size={20} color={SUBSCRIPTION_COLORS.dark} />

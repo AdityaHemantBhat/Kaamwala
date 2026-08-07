@@ -6,12 +6,10 @@ import {
   ScrollView,
   Pressable,
   Share,
-  ActivityIndicator,
-  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import Animated, { FadeInDown, FadeIn } from 'react-native-reanimated';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useT } from '../../utils/i18n';
 import { useRouter } from 'expo-router';
 import { apiClient } from '../../api/client';
@@ -37,7 +35,7 @@ export default function ReferralScreen() {
         setCode(codeRes.data?.data?.code || '');
         setStats(statsRes.data?.data);
         setLeaderboard(lbRes.data?.data || []);
-      } catch (e) {  }
+      } catch {  }
       finally { setLoading(false); }
     })();
   }, []);
@@ -209,7 +207,6 @@ export default function ReferralScreen() {
             <Text style={styles.sectionTitle}>{t('Top referrers')}</Text>
             <View style={styles.lbContainer}>
               {leaderboard.slice(0, 5).map((l: any, i: number) => {
-                const medals = ['#FFD700', '#C0C0C0', '#CD7F32'];
                 return (
                   <View
                     key={i}

@@ -1,5 +1,5 @@
 import React, { forwardRef, useMemo } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet } from 'react-native';
 import { default as GorhomBottomSheet, BottomSheetBackdrop, BottomSheetView } from '@gorhom/bottom-sheet';
 import { Colors } from '../../constants/colors';
 

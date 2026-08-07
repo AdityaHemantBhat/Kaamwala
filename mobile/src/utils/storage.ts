@@ -1,6 +1,5 @@
 import * as SecureStore from 'expo-secure-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Platform } from 'react-native';
 
 /**
  * Storage Utility for handling secure and non-secure storage
@@ -128,7 +127,7 @@ export const appStorage = {
     if (secureData !== null) {
       try {
         return JSON.parse(secureData) as T;
-      } catch (error) {
+      } catch {
         // Not JSON or parse error, return as string
         return secureData as any;
       }

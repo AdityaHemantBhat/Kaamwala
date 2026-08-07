@@ -50,7 +50,7 @@ export function SOSButton({ bookingId }: SOSButtonProps) {
       });
 
       showToast({ message: t('SOS Alert Sent! Help is on the way.'), type: 'success' });
-    } catch (error) {
+    } catch {
       showToast({ message: t('Failed to send SOS. Please dial 112.'), type: 'error' });
     } finally {
       setLoading(false);

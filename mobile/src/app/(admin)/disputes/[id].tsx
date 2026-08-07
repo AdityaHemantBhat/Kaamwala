@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, Pressable, StyleSheet, Alert, ActivityIndicator, TextInput, Modal, Image } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, ScrollView, Pressable, StyleSheet, ActivityIndicator, TextInput, Modal, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -35,7 +35,7 @@ export default function DisputeDetailScreen() {
   const [imageModalVisible, setImageModalVisible] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string>('');
 
-  const load = async () => {
+  const load = useCallback(async () => {
     try {
       const r = await apiClient.get(`/disputes/${id}`);
       setDispute(r.data?.data);
@@ -45,9 +45,9 @@ export default function DisputeDetailScreen() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id, router, showToast, t]);
 
-  useEffect(() => { load(); }, [id]);
+  useEffect(() => { load(); }, [load]);
 
   const handleResolve = async () => {
     setActionLoading(true);

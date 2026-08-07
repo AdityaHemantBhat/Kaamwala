@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Pressable, Dimensions, Modal } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, Dimensions, Modal } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Animated, { FadeIn, FadeInDown, FadeInUp, withTiming, useSharedValue, useAnimatedStyle, Easing, withSpring } from 'react-native-reanimated';
+import Animated, { FadeInDown, FadeInUp, withTiming, useSharedValue, useAnimatedStyle, Easing } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { apiClient } from '../../api/client';
@@ -47,7 +47,7 @@ export default function WorkerAchievements() {
           duration: 1200,
           easing: Easing.out(Easing.exp),
         });
-      } catch (e) {
+      } catch {
       } finally {
         setLoading(false);
       }

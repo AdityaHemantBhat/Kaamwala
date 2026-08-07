@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, ScrollView, Pressable, RefreshControl, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -27,14 +27,14 @@ export default function AdminBookings() {
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<FilterType>('all');
 
-  const load = async () => {
+  const load = useCallback(async () => {
     try {
       const params: any = {};
       if (filter !== 'all') params.status = filter;
       const r = await apiClient.get('/admin/bookings', { params });
       setData(r.data?.data?.bookings || []);
     } catch {} finally { setLoading(false); setRefreshing(false); }
-  };
+  }, [filter]);
 
   useEffect(() => {
     load();
@@ -42,7 +42,7 @@ export default function AdminBookings() {
     const handleRefresh = () => { load(); };
     socketService.on('admin_refresh', handleRefresh);
     return () => { socketService.off('admin_refresh', handleRefresh); };
-  }, [filter]);
+  }, [load]);
 
   const counts: Record<string, number> = {
     all: data.length,

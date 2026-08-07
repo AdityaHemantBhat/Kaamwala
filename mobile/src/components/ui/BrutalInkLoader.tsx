@@ -33,7 +33,7 @@ export function BrutalInkLoader({
       -1,
       false
     );
-  }, []);
+  }, [progress]);
 
   const animatedStyle = useAnimatedStyle(() => {
     return {

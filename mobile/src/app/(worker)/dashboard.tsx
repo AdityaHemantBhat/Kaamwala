@@ -7,7 +7,6 @@ import {
   Switch,
   Pressable,
   RefreshControl,
-  ActivityIndicator,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { SkeletonWorkerDashboard } from '../../components/ui/Skeleton';
@@ -21,11 +20,12 @@ import { useT } from '../../utils/i18n';
 import { useToast } from '../../components/ui/ToastProvider';
 import { socketService } from '../../api/socket';
 import { apiClient } from '../../api/client';
+import { useRealtimeWalletRefresh } from '../../hooks/useRealtimeWalletRefresh';
 export default function WorkerDashboard() {
   const t = useT();
   
   const router = useRouter();
-  const { logout, user } = useAuthStore();
+  const { user } = useAuthStore();
   const { showToast } = useToast();
   const [isOnline, setIsOnline] = useState(false);
   const [stats, setStats] = useState<any>(null);
@@ -77,6 +77,11 @@ export default function WorkerDashboard() {
   );
 
   useEffect(() => { loadData(); }, []);
+
+  // Realtime wallet balance: a payment received / top-up / refund / withdrawal
+  // notification (socket or foreground push) refetches stats so the wallet card
+  // stays in sync without a manual pull-to-refresh.
+  useRealtimeWalletRefresh(loadData);
 
   useEffect(() => {
     (async () => {
@@ -182,7 +187,7 @@ export default function WorkerDashboard() {
           }
         } catch {}
       })();
-    } catch (e: any) {
+    } catch {
       setIsOnline(!val);
       showToast({ type: 'error', message: t('Failed to update availability') });
     }

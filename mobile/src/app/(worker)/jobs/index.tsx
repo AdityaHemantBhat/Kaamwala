@@ -6,7 +6,6 @@ import {
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { useAuthStore } from '../../../store/auth.store';
 import { apiClient } from '../../../api/client';
 import { useT } from '../../../utils/i18n';
 
@@ -31,7 +30,7 @@ export default function WorkerJobs() {
       ]);
       setJobs(jobsRes.data?.data?.jobs || []);
       setAcceptedRequests(acceptedRes.data?.data || []);
-    } catch (e) {
+    } catch {
     } finally {
       setLoading(false);
       setRefreshing(false);

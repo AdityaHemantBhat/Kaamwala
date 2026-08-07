@@ -1,10 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Alert } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { Image } from 'expo-image';
 import { Stack, useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useT } from '../../../utils/i18n';
-import * as ImagePicker from 'expo-image-picker';
 import { apiClient } from '../../../api/client';
 import { useToast } from '../../../components/ui/ToastProvider';
 import { DocumentScanner } from '../../../components/ui/DocumentScanner';
@@ -38,11 +37,7 @@ export default function WorkerVerificationWizard() {
   const [selfieUri, setSelfieUri] = useState<string | null>(null);
   const [scannerSide, setScannerSide] = useState<'FRONT' | 'BACK' | 'SELFIE' | null>(null);
 
-  useEffect(() => {
-    loadConfig();
-  }, []);
-
-  async function loadConfig() {
+  const loadConfig = useCallback(async () => {
     try {
       // Also check if there's an IN_PROGRESS or RESUBMISSION_REQUIRED draft
       const [cfgRes, currRes] = await Promise.all([
@@ -50,7 +45,7 @@ export default function WorkerVerificationWizard() {
         apiClient.get('/workers/verification/current')
       ]);
       setConfig(cfgRes.data?.data);
-      
+
       const curr = currRes.data?.data;
       if (curr && curr.status === 'IN_PROGRESS') {
         setSubmission(curr);
@@ -73,7 +68,11 @@ export default function WorkerVerificationWizard() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [t, router, showToast]);
+
+  useEffect(() => {
+    loadConfig();
+  }, [loadConfig]);
 
   const handleStart = async (selectedProofType: string) => {
     setActionLoading(true);

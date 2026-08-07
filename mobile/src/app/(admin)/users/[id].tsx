@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -39,7 +39,7 @@ export default function UserDetail() {
     }
   };
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       const res = await apiClient.get(`/admin/users/${id}/audit`);
       setData(res.data?.data);
@@ -48,9 +48,9 @@ export default function UserDetail() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id, showToast]);
 
-  useEffect(() => { loadData(); }, [id]);
+  useEffect(() => { loadData(); }, [loadData]);
 
   const handleUnban = async () => {
     setActionLoading(true);

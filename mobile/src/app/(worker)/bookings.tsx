@@ -3,7 +3,7 @@ import {
   View, Text, StyleSheet, ScrollView, Pressable, RefreshControl, ActivityIndicator,
   Modal, TextInput, Linking, Image
 } from 'react-native';
-import { KeyboardAvoidingView, KeyboardAwareScrollView } from 'react-native-keyboard-controller';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -42,7 +42,6 @@ export default function WorkerBookings() {
   const [cancelReasonCategory, setCancelReasonCategory] = useState<string>('OTHER');
   const [workerCancelling, setWorkerCancelling] = useState(false);
   const [cancelPreview, setCancelPreview] = useState<any>(null);
-  const [showScanner, setShowScanner] = useState(false);
   const [showManualOtp, setShowManualOtp] = useState(false);
   const [permission, requestPermission] = useCameraPermissions();
 
@@ -99,7 +98,7 @@ export default function WorkerBookings() {
     if (otpModal.visible && permission?.status !== 'granted') {
       requestPermission();
     }
-  }, [otpModal.visible]);
+  }, [otpModal.visible, permission?.status, requestPermission]);
 
   // Fetch cancellation preview so the worker sees the real refund amount for
   // post-"On My Way" cancellations of already-paid bookings.
@@ -116,7 +115,7 @@ export default function WorkerBookings() {
         setCancelPreview(null);
       }
     })();
-  }, [cancelModal.visible, cancelModal.booking?.id]);
+  }, [cancelModal.visible, cancelModal.booking?.id, cancelModal.booking.cancelRequestStatus]);
 
   const updateStatus = async (id: string, status: string, otp?: string) => {
     setUpdatingId(id);
@@ -528,7 +527,7 @@ export default function WorkerBookings() {
                       await apiClient.post(`/bookings/${otpModal.bookingId}/send-arrival-otp`);
                       showToast({ message: t('OTP sent to customer via SMS'), type: 'success' });
                       setShowManualOtp(true);
-                    } catch (e: any) {
+                    } catch {
                       showToast({ message: t('Failed to send OTP SMS'), type: 'error' });
                       setShowManualOtp(true);
                     }

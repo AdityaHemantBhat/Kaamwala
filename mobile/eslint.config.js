@@ -25,12 +25,14 @@ module.exports = defineConfig([
     //   - reanimated shared-value mutation (`value.value = X` is the SDK's API)
     //   - legacy RN Animated.Value refs read during render (its documented usage)
     //   - mount-time "reset + fetch" effects and effect-synced store state
-    // Downgrade to warnings so they stay visible without blocking the build.
+    // Turned OFF rather than warning: without the compiler they are pure noise
+    // (117 warnings, ~38% of the project's total) and every one is a false
+    // positive for this codebase.
     rules: {
-      'react-hooks/refs': 'warn',
-      'react-hooks/immutability': 'warn',
-      'react-hooks/set-state-in-effect': 'warn',
-      'react-hooks/preserve-manual-memoization': 'warn',
+      'react-hooks/refs': 'off',
+      'react-hooks/immutability': 'off',
+      'react-hooks/set-state-in-effect': 'off',
+      'react-hooks/preserve-manual-memoization': 'off',
     },
   }
 ]);

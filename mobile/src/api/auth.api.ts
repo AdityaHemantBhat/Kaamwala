@@ -2,6 +2,8 @@ import axios from 'axios';
 
 import { env } from '../config/env';
 
+// axios's default export exposes .create; named-export warning is a false positive
+// eslint-disable-next-line import/no-named-as-default-member
 const api = axios.create({
   baseURL: env.API_URL,
 });

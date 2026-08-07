@@ -1,5 +1,5 @@
-import React, { useEffect, memo } from 'react';
-import { View, StyleSheet, ViewStyle, TextStyle, ScrollView } from 'react-native';
+import React, { useEffect } from 'react';
+import { View, StyleSheet, ViewStyle, ScrollView } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -9,7 +9,6 @@ import Animated, {
 } from 'react-native-reanimated';
 
 const SHIMMER_BASE = '#E8E2D6';
-const SHIMMER_HIGHLIGHT = '#F5F0E8';
 const CARD_BG = '#FFFFFF';
 
 /**
@@ -1173,27 +1172,27 @@ export type SkeletonSectionCardProps = {
   fieldCount?: number;
 };
 
-export type SkeletonCustomerProfileProps = {};
+export type SkeletonCustomerProfileProps = Record<string, never>;
 
-export type SkeletonWorkerProfileProps = {};
+export type SkeletonWorkerProfileProps = Record<string, never>;
 
 export type SkeletonDashboardStatsProps = {
   count?: number;
 };
 
-export type SkeletonBookingCardProps = {};
+export type SkeletonBookingCardProps = Record<string, never>;
 
 export type SkeletonBookingListProps = {
   count?: number;
 };
 
-export type SkeletonWorkerCardProps = {};
+export type SkeletonWorkerCardProps = Record<string, never>;
 
 export type SkeletonWorkerListProps = {
   count?: number;
 };
 
-export type SkeletonJobCardProps = {};
+export type SkeletonJobCardProps = Record<string, never>;
 
 export type SkeletonJobListProps = {
   count?: number;
@@ -1207,7 +1206,7 @@ export type SkeletonChatListProps = {
   count?: number;
 };
 
-export type SkeletonNotificationProps = {};
+export type SkeletonNotificationProps = Record<string, never>;
 
 export type SkeletonNotificationListProps = {
   count?: number;
@@ -1223,17 +1222,17 @@ export type SkeletonSearchResultsProps = {
   count?: number;
 };
 
-export type SkeletonPaymentMethodProps = {};
+export type SkeletonPaymentMethodProps = Record<string, never>;
 
 export type SkeletonSettingsSectionProps = {
   itemCount?: number;
 };
 
-export type SkeletonWorkerDashboardProps = {};
-export type SkeletonCustomerHomeProps = {};
-export type SkeletonWorkerEarningsProps = {};
-export type SkeletonWorkerBrowseRequestsProps = {};
-export type SkeletonWorkerDetailProps = {};
+export type SkeletonWorkerDashboardProps = Record<string, never>;
+export type SkeletonCustomerHomeProps = Record<string, never>;
+export type SkeletonWorkerEarningsProps = Record<string, never>;
+export type SkeletonWorkerBrowseRequestsProps = Record<string, never>;
+export type SkeletonWorkerDetailProps = Record<string, never>;
 
 // Worker Profile specific styles - mirrors actual worker/profile.tsx layout
 const SKELETON_CARD_BG = '#FFFFFF';

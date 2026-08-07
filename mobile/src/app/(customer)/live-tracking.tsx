@@ -95,8 +95,8 @@ export default function LiveTracking() {
   const [loading, setLoading] = useState(true);
   const [workerName, setWorkerName] = useState('');
   const [eta, setEta] = useState<number | null>(null);
-  const [workerLoc, setWorkerLoc] = useState<{ latitude: number; longitude: number } | null>(null);
-  const [customerLoc, setCustomerLoc] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [, setWorkerLoc] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [, setCustomerLoc] = useState<{ latitude: number; longitude: number } | null>(null);
   const [arrived, setArrived] = useState(false);
   const [arrivalOtp, setArrivalOtp] = useState<string | null>(null);
   const [showMap, setShowMap] = useState(false);
@@ -181,6 +181,9 @@ export default function LiveTracking() {
       socketService.off('worker_arrived');
       if (pollInterval) clearInterval(pollInterval);
     };
+    // loadTracking is a plain function recreated each render; this per-booking
+    // setup effect must only re-run when bookingId (or a stable handler) changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bookingId, moveWorker, placeDestination]);
 
   async function loadTracking() {
@@ -269,7 +272,7 @@ export default function LiveTracking() {
                 if (data.type === 'route_info' && data.min !== undefined) {
                   setEta(Number(data.min));
                 }
-              } catch (e) {}
+              } catch {}
             }}
           />
         </View>

@@ -6,10 +6,10 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Animated, { FadeInUp } from 'react-native-reanimated';
 import { State, City } from 'country-state-city';
 import * as Location from 'expo-location';
+import { router } from 'expo-router';
 import { apiClient } from '../../api/client';
 import { useT } from '../../utils/i18n';
 import { useToast } from '../../components/ui/ToastProvider';
-import { SkeletonCard } from '../../components/ui/Skeleton';
 import { SkeletonAddressesBody } from '../../components/ui/SkeletonScreenLayouts';
 import { FormInput } from '../../components/ui/FormInput';
 
@@ -21,7 +21,7 @@ export default function AddressesScreen() {
   const { showToast } = useToast();
   const [addresses, setAddresses] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const [, setRefreshing] = useState(false);
 
   // Modal state
   const [isModalVisible, setModalVisible] = useState(false);
@@ -60,7 +60,7 @@ export default function AddressesScreen() {
     try {
       const res = await apiClient.get('/addresses');
       setAddresses(res.data?.data || []);
-    } catch (e) {  }
+    } catch {  }
     finally { setLoading(false); setRefreshing(false); }
   }
 
@@ -167,7 +167,7 @@ export default function AddressesScreen() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#F5F0E8' }} edges={['top']}>
       <View style={{ paddingHorizontal: 20, paddingVertical: 12, flexDirection: 'row', alignItems: 'center' }}>
-        <Pressable onPress={() => { try { require('expo-router').router.back(); } catch {} }}
+        <Pressable onPress={() => { try { router.back(); } catch {} }}
           style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(13,13,13,0.04)', justifyContent: 'center', alignItems: 'center' }}>
           <MaterialCommunityIcons name="arrow-left" size={20} color="#0D0D0D" />
         </Pressable>

@@ -1,14 +1,12 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Image } from 'expo-image';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withTiming,
-  withDelay,
   Easing,
 } from 'react-native-reanimated';
-import { useEffect } from 'react';
 
 interface BrandMarkProps {
   size?: number;
@@ -34,7 +32,7 @@ export function BrandMark({
     } else if (animated) {
       markScale.value = withTiming(1, { duration: 700, easing: Easing.out(Easing.cubic) });
     }
-  }, [preloader, animated]);
+  }, [preloader, animated, markScale, markOp]);
 
   const markStyle = useAnimatedStyle(() => ({ 
     transform: [{ scale: markScale.value }],

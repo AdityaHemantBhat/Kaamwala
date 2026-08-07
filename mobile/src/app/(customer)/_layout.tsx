@@ -36,7 +36,7 @@ export default function CustomerLayout() {
       socketService.off('new_notification', handler);
       sub.remove();
     };
-  }, []);
+  }, [showBanner]);
 
   if (user?.isBanned) {
     return <Redirect href="/(banned)" />;

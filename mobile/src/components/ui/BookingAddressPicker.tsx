@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator } from 'react-native';
-import { ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator , ScrollView } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { State } from 'country-state-city';

@@ -5,7 +5,7 @@ import { logger } from '../utils/logger';
 
 class SocketService {
   private socket: Socket | null = null;
-  private pendingListeners: Array<{ event: string; callback: (...args: any[]) => void }> = [];
+  private pendingListeners: { event: string; callback: (...args: any[]) => void }[] = [];
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
   private isConnecting = false;

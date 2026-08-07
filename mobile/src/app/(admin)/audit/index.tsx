@@ -25,7 +25,7 @@ export default function AdminAuditSearch() {
           const res = await apiClient.get(`/admin/users/search?q=${encodeURIComponent(query.trim())}`);
           setResults(res.data?.data || []);
         }
-      } catch (e) {
+      } catch {
       } finally {
         setLoading(false);
       }

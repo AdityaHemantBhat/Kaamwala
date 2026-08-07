@@ -6,6 +6,8 @@ import { env } from '../config/env';
 // Report the app version so the backend's requireMinVersion gate works.
 export const APP_VERSION = Constants.expoConfig?.version || '1.0.0';
 
+// axios's default export exposes .create; named-export warning is a false positive
+// eslint-disable-next-line import/no-named-as-default-member
 export const apiClient = axios.create({
   baseURL: env.API_URL || 'http://localhost:5000/api/v1',
   // Abort hung requests instead of leaving the UI spinning forever. 30s is

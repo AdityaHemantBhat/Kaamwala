@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
-import Animated, { useSharedValue, useAnimatedStyle, withSpring, withTiming, runOnJS } from 'react-native-reanimated';
+import Animated, { useSharedValue, useAnimatedStyle, withSpring, withTiming, runOnJS, Easing } from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -66,23 +66,21 @@ export const NotificationBannerProvider: React.FC<{ children: React.ReactNode }>
   const translateY = useSharedValue(-140);
   const translateX = useSharedValue(0);
   const opacity = useSharedValue(0);
-  const progressWidth = useSharedValue(100); // Progress bar: 100% → 0%
 
   const dismissTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const progressTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const clearFallbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dedupTimers = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
   const recentKeys = useRef<Set<string>>(new Set());
   const isMountedRef = useRef(true);
 
   useEffect(() => {
+    const timers = dedupTimers.current;
     return () => {
       isMountedRef.current = false;
       // Clear every pending timer on unmount (dedup timeouts included).
-      dedupTimers.current.forEach((id) => clearTimeout(id));
-      dedupTimers.current.clear();
+      timers.forEach((id) => clearTimeout(id));
+      timers.clear();
       if (dismissTimer.current) clearTimeout(dismissTimer.current);
-      if (progressTimer.current) clearInterval(progressTimer.current);
       if (clearFallbackTimer.current) clearTimeout(clearFallbackTimer.current);
     };
   }, []);
@@ -98,31 +96,29 @@ export const NotificationBannerProvider: React.FC<{ children: React.ReactNode }>
       clearTimeout(dismissTimer.current);
       dismissTimer.current = null;
     }
-    if (progressTimer.current) {
-      clearInterval(progressTimer.current);
-      progressTimer.current = null;
-    }
     if (clearFallbackTimer.current) {
       clearTimeout(clearFallbackTimer.current);
       clearFallbackTimer.current = null;
     }
   }, []);
 
-  // Single exit path: animate out, then hard-clear the banner. The fallback
+  // Single exit path: float the banner upward, then hard-clear it. The fallback
   // timer guarantees the queue advances even if the exit animation callback is
   // cancelled by a racing dismiss.
   const dismiss = useCallback(() => {
     clearTimers();
-    translateY.value = withTiming(-150, { duration: DISMISS_ANIMATION_MS });
+    translateY.value = withTiming(-180, {
+      duration: DISMISS_ANIMATION_MS,
+      easing: Easing.out(Easing.quad),
+    });
     opacity.value = withTiming(0, { duration: DISMISS_ANIMATION_MS - 20 }, (finished) => {
       if (finished) runOnJS(clearCurrent)();
     });
-    progressWidth.value = 0;
     clearFallbackTimer.current = setTimeout(() => {
       clearFallbackTimer.current = null;
       if (isMountedRef.current) clearCurrent();
     }, CLEAR_FALLBACK_MS);
-  }, [clearTimers, clearCurrent, translateY, opacity, progressWidth]);
+  }, [clearTimers, clearCurrent, translateY, opacity]);
 
   // Slide the banner off to the left or right (swipe-to-dismiss).
   const dismissHorizontal = useCallback((dir: 1 | -1) => {
@@ -131,12 +127,11 @@ export const NotificationBannerProvider: React.FC<{ children: React.ReactNode }>
     opacity.value = withTiming(0, { duration: DISMISS_ANIMATION_MS - 20 }, (finished) => {
       if (finished) runOnJS(clearCurrent)();
     });
-    progressWidth.value = 0;
     clearFallbackTimer.current = setTimeout(() => {
       clearFallbackTimer.current = null;
       if (isMountedRef.current) clearCurrent();
     }, CLEAR_FALLBACK_MS);
-  }, [clearTimers, clearCurrent, translateX, opacity, progressWidth]);
+  }, [clearTimers, clearCurrent, translateX, opacity]);
 
   const showBanner = useCallback((notification: any) => {
     // Never interrupt the user while they are already reading their inbox.
@@ -173,7 +168,6 @@ export const NotificationBannerProvider: React.FC<{ children: React.ReactNode }>
     translateY.value = -150;
     translateX.value = 0;
     opacity.value = 0;
-    progressWidth.value = 100;
 
     // Animate in (slide down + fade)
     translateY.value = withSpring(0, { damping: 18, stiffness: 220 });
@@ -184,23 +178,12 @@ export const NotificationBannerProvider: React.FC<{ children: React.ReactNode }>
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     } catch {}
 
-    // Auto-dismiss after the display window.
+    // Auto-dismiss after the display window (banner floats up on exit).
     dismissTimer.current = setTimeout(() => {
       if (isMountedRef.current) {
         dismiss();
       }
     }, VISIBLE_MS);
-
-    // Single continuous progress animation (100% → 0%). A lone withTiming,
-    // not an interval restarting it every frame — the previous version never
-    // actually drained and leaked an interval.
-    progressTimer.current = setInterval(() => {
-      progressWidth.value = withTiming(0, { duration: VISIBLE_MS });
-      if (progressTimer.current) {
-        clearInterval(progressTimer.current);
-        progressTimer.current = null;
-      }
-    }, 0);
 
     return () => {
       clearTimers();
@@ -251,10 +234,6 @@ export const NotificationBannerProvider: React.FC<{ children: React.ReactNode }>
     opacity: opacity.value,
   }));
 
-  const progressAnimatedStyle = useAnimatedStyle(() => ({
-    width: `${progressWidth.value}%`,
-  }));
-
   const meta = current ? getNotificationMeta(current.type) : null;
 
   return (
@@ -270,11 +249,6 @@ export const NotificationBannerProvider: React.FC<{ children: React.ReactNode }>
             ]}
           >
             <Pressable onPress={handlePress} style={styles.inner} accessibilityRole="button">
-              {/* Slim progress accent at the top — subtle countdown, not an
-                  orange bottom border. Tinted by the notification type. */}
-              <Animated.View
-                style={[styles.progressBar, { backgroundColor: meta.color }, progressAnimatedStyle]}
-              />
               <View style={[styles.iconWrap, { backgroundColor: meta.color + '16' }]}>
                 <MaterialCommunityIcons name={meta.icon as any} size={22} color={meta.color} />
               </View>
@@ -349,13 +323,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingLeft: 4,
-  },
-  progressBar: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    height: 3,
-    borderTopLeftRadius: 16,
   },
   queueIndicator: {
     position: 'absolute',

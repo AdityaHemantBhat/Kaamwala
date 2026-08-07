@@ -1,11 +1,9 @@
 import React, { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Pressable, Modal, Animated, Dimensions, Platform } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Modal, Animated, Platform } from 'react-native';
 import { Image } from 'expo-image';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useT } from '../../utils/i18n';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
-const { width } = Dimensions.get('window');
 
 interface UrgentJob {
   requestId: string;
@@ -62,7 +60,7 @@ export function UrgentJobModal({ visible, job, onAccept, onDismiss }: UrgentJobM
         Animated.timing(slideAnim, { toValue: 100, duration: 200, useNativeDriver: true }),
       ]).start();
     }
-  }, [visible]);
+  }, [visible, overlayOp, slideAnim]);
 
   if (!job) return null;
 

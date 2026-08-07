@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, Pressable, RefreshControl, StyleSheet, TextInput, TouchableOpacity } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, ScrollView, Pressable, RefreshControl, StyleSheet, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -28,7 +28,7 @@ export default function AdminDisputes() {
   const [statusFilter, setStatusFilter] = useState<FilterType>('all');
   const [stats, setStats] = useState<any>(null);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     try {
       const params = new URLSearchParams();
       if (statusFilter !== 'all') params.append('status', statusFilter);
@@ -40,20 +40,20 @@ export default function AdminDisputes() {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [statusFilter, search]);
 
-  const loadStats = async () => {
+  const loadStats = useCallback(async () => {
     try {
       const r = await apiClient.get('/disputes/admin/stats');
       setStats(r.data?.data);
     } catch {}
-  };
+  }, []);
 
   useEffect(() => {
     setLoading(true);
     load();
     loadStats();
-  }, [statusFilter, search]);
+  }, [load, loadStats]);
 
   useEffect(() => {
     socketService.connect();
@@ -62,7 +62,7 @@ export default function AdminDisputes() {
     };
     socketService.on('admin_refresh', handleRefresh);
     return () => { socketService.off('admin_refresh', handleRefresh); };
-  }, []);
+  }, [load, loadStats]);
 
   if (loading && !refreshing && data.length === 0) {
     return (
