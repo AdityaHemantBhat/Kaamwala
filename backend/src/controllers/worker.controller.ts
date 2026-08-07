@@ -152,7 +152,7 @@ export const workerController = {
 
   searchWorkers: async (req: Request, res: Response) => {
     try {
-      const { lat, lng, category, radius, minRating, maxPrice, page, limit, search } = req.query;
+      const { lat, lng, category, radius, minRating, maxPrice, page, limit, search, city, state } = req.query;
       const workers = await workerService.searchWorkers(
         parseFloat(lat as string),
         parseFloat(lng as string),
@@ -162,7 +162,9 @@ export const workerController = {
         radius ? parseInt(radius as string) : undefined,
         page ? parseInt(page as string) : 1,
         limit ? parseInt(limit as string) : 20,
-        search as string | undefined
+        search as string | undefined,
+        city as string | undefined,
+        state as string | undefined
       );
       sendResponse(res, 200, workers);
     } catch (e: any) {

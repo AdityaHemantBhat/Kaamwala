@@ -13,6 +13,12 @@ const envSchema = z.object({
   ENABLE_DEV_BACKDOORS: z.string().default('false'),
 
   PORT: z.string().default('5000'),
+  // Number of reverse-proxy hops in front of Express (Render, nginx, …). The
+  // rate limiter keys on req.ip, which only reflects the real client when the
+  // proxy is trusted — otherwise every request collapses onto the proxy's IP
+  // and ALL users share one rate-limit bucket (one hot app locks everyone out).
+  // Leave unset (0) when the API is hit directly, as in local dev.
+  TRUST_PROXY_HOPS: z.string().default('0'),
   DATABASE_URL: z.string().url(),
   REDIS_URL: z.string().url(),
   CLOUDINARY_CLOUD_NAME: z.string(),

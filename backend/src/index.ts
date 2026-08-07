@@ -64,6 +64,13 @@ async function validateDatabaseReady(): Promise<void> {
 function setupExpressApp(): express.Express {
   const app = express();
 
+  // Trust the configured number of reverse-proxy hops so req.ip (and thus the
+  // rate limiter's per-IP bucket) reflects the real client, not the proxy.
+  const trustProxyHops = Number(env.TRUST_PROXY_HOPS || '0');
+  if (Number.isInteger(trustProxyHops) && trustProxyHops > 0) {
+    app.set('trust proxy', trustProxyHops);
+  }
+
   app.use(helmet());
   app.use(cors({ origin: ALLOWED_ORIGINS }));
   // 'dev' format is terminal-noise; use the standard Apache format in production.

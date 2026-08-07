@@ -19,6 +19,7 @@ import { useT } from '../../utils/i18n';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { FeaturedBadge, isFeaturedActive } from '../../components/ui/FeaturedBadge';
+import * as Location from 'expo-location';
 import { apiClient } from '../../api/client';
 
 // ─── Layout Constants ─────────────────────────────────────────────────────────
@@ -55,6 +56,7 @@ interface Worker {
   totalRatings?: number;
   hourlyRate?: number;
   distance?: number;
+  distanceKm?: number | null;
   avatarUrl?: string;
   completedJobs?: number;
   isGuaranteed?: boolean;
@@ -83,6 +85,63 @@ const CATEGORY_ICONS: Record<string, keyof typeof MaterialCommunityIcons.glyphMa
   BABYSITTER: 'baby-face-outline',
 };
 
+// ─── Search area ──────────────────────────────────────────────────────────────
+interface SearchArea {
+  lat?: number;
+  lng?: number;
+  city?: string;
+  state?: string;
+  source: 'location' | 'address' | 'none';
+}
+
+// Resolve the customer's service area for search, preferring live location and
+// falling back to their saved (default) address. A customer who declined the
+// location permission but saved an address still gets workers near that
+// address — Amazon-style "deliver to your area" — instead of a blank, area-less
+// result set. Returns source:'none' when there's nothing to anchor on.
+async function resolveSearchArea(): Promise<SearchArea> {
+  // 1. Live location (permission prompt shows only the first time).
+  try {
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    if (status === 'granted') {
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      const geo = await Location.reverseGeocodeAsync(loc.coords);
+      const g = geo[0];
+      if (g) {
+        return {
+          lat: loc.coords.latitude,
+          lng: loc.coords.longitude,
+          city: g.city || g.subregion || undefined,
+          state: g.region || undefined,
+          source: 'location',
+        };
+      }
+    }
+  } catch {
+    // Location unavailable — fall through to the saved address.
+  }
+
+  // 2. Saved (default) address — it always carries coordinates.
+  try {
+    const res = await apiClient.get('/addresses');
+    const list: any[] = res.data?.data || [];
+    const addr = list.find((a) => a.isDefault) || list[0];
+    if (addr && typeof addr.latitude === 'number' && typeof addr.longitude === 'number') {
+      return {
+        lat: addr.latitude,
+        lng: addr.longitude,
+        city: addr.city,
+        state: addr.state,
+        source: 'address',
+      };
+    }
+  } catch {
+    // No saved address either — search without area context.
+  }
+
+  return { source: 'none' };
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function SearchScreen() {
   const router = useRouter();
@@ -100,6 +159,12 @@ export default function SearchScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Anchor point for search — live location when permission is granted,
+  // otherwise the customer's saved (default) address. Resolved on focus and
+  // read by fetchWorkers so every request sends the same area.
+  const areaRef = useRef<SearchArea>({ source: 'none' });
+  const [areaLabel, setAreaLabel] = useState('');
 
   // ── Data Fetching ─────────────────────────────────────────────────────────
   const abortRef = useRef<AbortController | null>(null);
@@ -122,6 +187,16 @@ export default function SearchScreen() {
         const params: Record<string, string> = {};
         if (query && query.trim()) params.search = query.trim();
         if (category && category !== 'All') params.category = category.toUpperCase();
+
+        // Send the resolved search area so the backend can radius-filter around
+        // it (live location) or fall back to city/state matching (saved address).
+        const area = areaRef.current;
+        if (typeof area.lat === 'number' && typeof area.lng === 'number') {
+          params.lat = String(area.lat);
+          params.lng = String(area.lng);
+        }
+        if (area.city) params.city = area.city;
+        if (area.state) params.state = area.state;
 
         const res = await apiClient.get('/workers/search', { params, signal: controller.signal });
         if (seq !== fetchSeqRef.current) return; // superseded by a newer query
@@ -154,12 +229,29 @@ export default function SearchScreen() {
   // focus (fresh navigation from home, back, etc.).
   useFocusEffect(
     useCallback(() => {
+      let cancelled = false;
+      // Reset to a fresh search immediately on focus — no stale results flash.
       setSearchQuery('');
       setSelectedCategory(initialCategory);
       setError(null);
       setWorkers([]);
       setLoading(true);
-      fetchWorkers('', initialCategory || undefined);
+
+      // Resolve the search area (permission prompt on first visit, then a
+      // saved-address fallback) so workers are scoped to the customer's area
+      // even when they declined the location permission. areaRef is set before
+      // the first fetch so params carry lat/lng/city/state.
+      (async () => {
+        const area = await resolveSearchArea();
+        if (cancelled) return;
+        areaRef.current = area;
+        setAreaLabel(area.source === 'none' ? '' : area.city || area.state || '');
+        fetchWorkers('', initialCategory || undefined);
+      })();
+
+      return () => {
+        cancelled = true;
+      };
     }, [fetchWorkers, initialCategory])
   );
 
@@ -224,7 +316,7 @@ export default function SearchScreen() {
       const rating = item.rating ?? 0;
       const rate = item.hourlyRate ?? 0;
       const jobs = item.completedJobs ?? 0;
-      const distance = item.distance ?? null;
+      const distance = item.distanceKm ?? item.distance ?? null;
       const category = item.category || 'General';
 
       return (
@@ -490,6 +582,20 @@ export default function SearchScreen() {
         <Text style={styles.topBarTitle}>{t('Search')}</Text>
       </View>
 
+      {/* ── Area Bar ────────────────────────────────────────────────────── */}
+      {areaLabel ? (
+        <View style={styles.areaBar}>
+          <MaterialCommunityIcons
+            name="map-marker-radius"
+            size={13}
+            color="#FF5C00"
+          />
+          <Text style={styles.areaBarText} numberOfLines={1}>
+            {t('Showing workers near')} {areaLabel}
+          </Text>
+        </View>
+      ) : null}
+
       {/* ── Search Bar ──────────────────────────────────────────────────── */}
       <View style={styles.searchOuter}>
         <View style={styles.searchContainer}>
@@ -660,6 +766,27 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_700Bold',
     fontSize: 22,
     color: '#0D0D0D',
+  },
+
+  // ── Area Bar ────────────────────────────────────────────────────────────
+  areaBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginHorizontal: H_PADDING,
+    marginBottom: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    backgroundColor: '#FFF0E8',
+    alignSelf: 'flex-start',
+    maxWidth: SCREEN_WIDTH - H_PADDING * 2,
+  },
+  areaBarText: {
+    fontFamily: 'Inter_500Medium',
+    fontSize: 11,
+    color: '#FF5C00',
+    flexShrink: 1,
   },
 
   // ── Search ──────────────────────────────────────────────────────────────

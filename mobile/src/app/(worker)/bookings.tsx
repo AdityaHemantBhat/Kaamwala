@@ -26,6 +26,18 @@ const STATUS_STYLE: Record<string, { label: string; color: string; bg: string }>
   CANCELLED:   { label: 'Cancelled',color: '#F44336', bg: '#FFEBEE' },
 };
 
+// Human-readable labels for the status-update toast — the raw enum value
+// (IN_PROGRESS) reads like a code, not a sentence.
+const STATUS_LABEL: Record<string, string> = {
+  PENDING:     'Pending',
+  ACCEPTED:    'Accepted',
+  ON_THE_WAY:  'On the way',
+  IN_PROGRESS: 'In progress',
+  COMPLETED:   'Completed',
+  CANCELLED:   'Cancelled',
+  DISPUTED:    'Disputed',
+};
+
 export default function WorkerBookings() {
   const router = useRouter();
   const t = useT();
@@ -103,7 +115,7 @@ export default function WorkerBookings() {
   // Fetch cancellation preview so the worker sees the real refund amount for
   // post-"On My Way" cancellations of already-paid bookings.
   useEffect(() => {
-    if (!cancelModal.visible || !cancelModal.booking?.id || cancelModal.booking.cancelRequestStatus === 'PENDING_CUSTOMER') {
+    if (!cancelModal.visible || !cancelModal.booking?.id || cancelModal.booking?.cancelRequestStatus === 'PENDING_CUSTOMER') {
       setCancelPreview(null);
       return;
     }
@@ -115,13 +127,13 @@ export default function WorkerBookings() {
         setCancelPreview(null);
       }
     })();
-  }, [cancelModal.visible, cancelModal.booking?.id, cancelModal.booking.cancelRequestStatus]);
+  }, [cancelModal.visible, cancelModal.booking?.id, cancelModal.booking?.cancelRequestStatus]);
 
   const updateStatus = async (id: string, status: string, otp?: string) => {
     setUpdatingId(id);
     try {
       await apiClient.patch(`/bookings/${id}/status`, { status, otp });
-      showToast({ message: `${t('Status updated to')} ${status}`, type: 'success' });
+      showToast({ message: `${t('Status updated to')} ${t(STATUS_LABEL[status] || status)}`, type: 'success' });
       loadBookings();
       // Navigate to live tracking when going on the way
       if (status === 'ON_THE_WAY') {

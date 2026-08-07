@@ -40,3 +40,6 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# Production keystore + passwords (MUST be backed up separately)
+keystore/

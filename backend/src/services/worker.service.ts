@@ -12,7 +12,7 @@ const SEARCH_SELECT = {
 } as const;
 
 export const workerService = {
-  async searchWorkers(lat: number, lng: number, category?: ServiceCategory, minRating?: number, maxPrice?: number, radius: number = 10, page: number = 1, limit: number = 20, search?: string) {
+  async searchWorkers(lat: number, lng: number, category?: ServiceCategory, minRating?: number, maxPrice?: number, radius: number = 10, page: number = 1, limit: number = 20, search?: string, city?: string, state?: string) {
     // Search is DISCOVERY — verification status and current availability are
     // surfaced as badges on the result cards, not hard filters. Only hard
     // account blocks (bans / frozen wallet) exclude a worker.
@@ -54,9 +54,31 @@ export const workerService = {
       return { ...worker, distanceKm: distance, avatarUrl };
     });
 
-    // If we have coordinates, filter by radius; otherwise keep all
-    if (typeof lat === 'number' && !isNaN(lat) && typeof lng === 'number' && !isNaN(lng)) {
+    // ── Service-area filter (Amazon-style "serves your area") ──────────────
+    // The customer's area is always passed when known: live coords when location
+    // permission is on, otherwise the saved (default) address's coords + city/
+    // state. Workers are hidden when they don't serve that area. City/state is
+    // matched case/whitespace-insensitively because both sides are free text —
+    // the same convention requests.controller.browseRequests uses for worker
+    // matching.
+    const hasCoords = typeof lat === 'number' && !isNaN(lat) && typeof lng === 'number' && !isNaN(lng);
+    const hasArea = !!(city && city.trim()) || !!(state && state.trim());
+    const norm = (s: any) => (s || '').toString().trim().toLowerCase();
+    const inArea = (w: any) =>
+      (city && city.trim() && norm(w.city) === norm(city)) ||
+      (state && state.trim() && norm(w.state) === norm(state));
+
+    if (hasCoords) {
+      // Precise: filter by service radius around the customer's location.
       results = results.filter(w => (w.distanceKm ?? 9999) <= radius);
+      // Broadening fallback: nobody within the radius, but workers exist in the
+      // same city/state — surface them rather than an empty "no workers" screen.
+      if (results.length === 0 && hasArea) {
+        results = results.filter(inArea);
+      }
+    } else if (hasArea) {
+      // No coordinates (e.g. only a saved address) — fall back to area match.
+      results = results.filter(inArea);
     }
 
     results.forEach(w => {

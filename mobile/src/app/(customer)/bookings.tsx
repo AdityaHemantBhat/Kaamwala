@@ -352,7 +352,7 @@ export default function CustomerBookings() {
   // Fetch cancellation preview — the server is the single source of truth for
   // the fee (plan eligibility, expiry, and post-"On My Way" state).
   useEffect(() => {
-    if (!cancelModal.visible || !cancelModal.booking?.id || cancelModal.booking.cancelRequestStatus === 'PENDING_CUSTOMER') {
+    if (!cancelModal.visible || !cancelModal.booking?.id || cancelModal.booking?.cancelRequestStatus === 'PENDING_CUSTOMER') {
       setCancelPreview(null);
       return;
     }
@@ -364,7 +364,7 @@ export default function CustomerBookings() {
         setCancelPreview(null);
       }
     })();
-  }, [cancelModal.visible, cancelModal.booking?.id, cancelModal.booking.cancelRequestStatus]);
+  }, [cancelModal.visible, cancelModal.booking?.id, cancelModal.booking?.cancelRequestStatus]);
 
   // ── Derived state ──────────────────────────────────────────────────────
 
@@ -1118,7 +1118,7 @@ export default function CustomerBookings() {
                   <View style={{ backgroundColor: cancelPreview.isFree ? '#E8F5E9' : '#FFF0E8', borderRadius: 12, padding: 12, marginBottom: 16, borderWidth: 1, borderColor: cancelPreview.isFree ? '#4CAF50' : '#FF5C00' }}>
                     <Text style={{ fontSize: 12, fontFamily: 'Inter_500Medium', color: cancelPreview.isFree ? '#2E7D32' : '#FF5C00', textAlign: 'center' }}>
                       {cancelPreview.isFree
-                        ? t('Free cancellation included with your subscription.')
+                        ? t('This cancellation is free of charge.')
                         : `${t('Your worker is already on the way. Cancelling now will incur a fee of')} ₹${cancelPreview.fee} (${t('added to your next booking')}).`
                       }
                     </Text>

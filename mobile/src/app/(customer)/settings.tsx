@@ -79,17 +79,6 @@ export default function CustomerSettings() {
         </View>
 
         <View>
-          <Text style={{ fontFamily: 'Inter_600SemiBold', fontSize: 10, color: '#9E9E9E', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 }}>{t('Plans')}</Text>
-          <View style={{ backgroundColor: '#FFF', borderRadius: 12, elevation: 1, overflow: 'hidden' }}>
-            <Pressable style={{ flexDirection: 'row', alignItems: 'center', padding: 16 }} onPress={() => router.push('/(customer)/subscription')}>
-              <MaterialCommunityIcons name="crown-outline" size={22} color="#D4A017" />
-              <Text style={{ fontFamily: 'Inter_400Regular', fontSize: 14, color: '#0D0D0D', flex: 1, marginLeft: 12 }}>{t('KaamWala Plus')}</Text>
-              <MaterialCommunityIcons name="chevron-right" size={18} color="#C8C0B0" />
-            </Pressable>
-          </View>
-        </View>
-
-        <View>
           <Text style={{ fontFamily: 'Inter_600SemiBold', fontSize: 10, color: '#9E9E9E', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 }}>{t('Support')}</Text>
           <View style={{ backgroundColor: '#FFF', borderRadius: 12, elevation: 1, overflow: 'hidden' }}>
             <Pressable style={{ flexDirection: 'row', alignItems: 'center', padding: 16 }} onPress={() => router.push('/(worker)/support' as any)}>

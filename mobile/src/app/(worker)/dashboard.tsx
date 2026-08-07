@@ -58,8 +58,6 @@ export default function WorkerDashboard() {
     } catch {}
   };
 
-  useEffect(() => { fetchUnread(); }, []);
-
   useEffect(() => {
     // Socket events keep the badge live in realtime; this interval is only a
     // fallback when the socket is down — skipping it while connected avoids a
@@ -70,6 +68,8 @@ export default function WorkerDashboard() {
     return () => clearInterval(interval);
   }, []);
 
+  // Fetch the unread badge on focus (fires on initial focus too — no separate
+  // mount effect, which would duplicate the request and add rate-limit pressure).
   useFocusEffect(
     useCallback(() => {
       fetchUnread();

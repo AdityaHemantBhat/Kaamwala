@@ -137,6 +137,24 @@ export default function AdminTicketDetail() {
           keyboardShouldPersistTaps="handled"
           onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}
         >
+          {(ticket.contactEmail || ticket.user?.name || ticket.user?.phone) && (
+            <View style={styles.contactCard}>
+              <View style={styles.contactIcon}>
+                <MaterialCommunityIcons name="account-circle-outline" size={22} color="#5F6368" />
+              </View>
+              <View style={{ flex: 1 }}>
+                {ticket.user?.name ? <Text style={styles.contactName}>{ticket.user.name}</Text> : null}
+                {ticket.user?.phone ? <Text style={styles.contactSub}>{ticket.user.phone}</Text> : null}
+                {ticket.contactEmail ? (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 }}>
+                    <MaterialCommunityIcons name="email-outline" size={13} color="#1A73E8" />
+                    <Text style={styles.contactEmail}>{ticket.contactEmail}</Text>
+                  </View>
+                ) : null}
+              </View>
+            </View>
+          )}
+
           {ticket.status === 'resolved' && (
             <View style={styles.resolvedBanner}>
               <MaterialCommunityIcons name="check-circle" size={16} color="#137333" />
@@ -235,6 +253,12 @@ const styles = StyleSheet.create({
 
   resolvedBanner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: '#E6F4EA', padding: 12, borderRadius: 12, marginBottom: 8 },
   resolvedText: { fontFamily: 'Inter_600SemiBold', fontSize: 13, color: '#137333' },
+
+  contactCard: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#DADCE0', borderRadius: 12, padding: 12 },
+  contactIcon: { width: 34, height: 34, borderRadius: 17, backgroundColor: '#F1F3F4', justifyContent: 'center', alignItems: 'center' },
+  contactName: { fontFamily: 'Inter_700Bold', fontSize: 14, color: '#202124' },
+  contactSub: { fontFamily: 'Inter_400Regular', fontSize: 12, color: '#5F6368', marginTop: 1 },
+  contactEmail: { fontFamily: 'Inter_500Medium', fontSize: 13, color: '#1A73E8', flex: 1 },
 
   msgWrapper: { flexDirection: 'row', alignItems: 'flex-end', marginBottom: 4 },
   msgWrapperLeft: { justifyContent: 'flex-start' },

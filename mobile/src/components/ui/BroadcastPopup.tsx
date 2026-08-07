@@ -134,16 +134,41 @@ export const BroadcastPopupProvider: React.FC<{ children: React.ReactNode }> = (
     }
   }, [isAuthenticated, tryShow]);
 
-  // Poll once when auth becomes available and on every foreground. This is what
-  // surfaces a broadcast that was sent while the app was closed — the "opened
-  // the app for the first time after it was sent" case.
+  // Poll throttle. A broadcast sent while the app is open arrives instantly via
+  // socket; the poll is only a catch-up for "app was closed when it was sent",
+  // so once per interval is plenty. Without it, every foreground/remount fires a
+  // GET — and since loadActive's identity changes whenever the user object does,
+  // a naive effect dependency re-polled on every such change, so the app could
+  // easily blow through the API rate limiter (the wall of 429s seen in prod).
+  const POLL_INTERVAL_MS = 30_000;
+  const loadActiveRef = useRef(loadActive);
+  loadActiveRef.current = loadActive;
+  const isAuthenticatedRef = useRef(isAuthenticated);
+  isAuthenticatedRef.current = isAuthenticated;
+  const lastPollAtRef = useRef(0);
+
+  const pollActive = useCallback(() => {
+    // Don't record a "poll" while signed out — auth hasn't happened yet, so the
+    // first real poll after login must not be swallowed by the throttle.
+    if (!isAuthenticatedRef.current) return;
+    const now = Date.now();
+    if (now - lastPollAtRef.current < POLL_INTERVAL_MS) return;
+    lastPollAtRef.current = now;
+    loadActiveRef.current();
+  }, []);
+
+  // Poll once when auth becomes available and on every foreground. Re-runs only
+  // when isAuthenticated flips (hydrate/login), NOT on every loadActive identity
+  // change — the ref keeps pollActive stable while always calling the latest
+  // loadActive. This is what surfaces a broadcast that was sent while the app
+  // was closed — the "opened the app for the first time after it was sent" case.
   useEffect(() => {
-    loadActive();
+    pollActive();
     const sub = AppState.addEventListener('change', (state) => {
-      if (state === 'active') loadActive();
+      if (state === 'active') pollActive();
     });
     return () => sub.remove();
-  }, [loadActive]);
+  }, [isAuthenticated, pollActive]);
 
   // Realtime: a broadcast sent while the app is open pops up immediately.
   useEffect(() => {
