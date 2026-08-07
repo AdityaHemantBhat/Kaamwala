@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Pressable, Animated, Dimensions, Platform, TextInput, Modal } from 'react-native';
-import { KeyboardAvoidingView, KeyboardAwareScrollView } from 'react-native-keyboard-controller';
+import { KeyboardAwareScrollView, KeyboardStickyView } from 'react-native-keyboard-controller';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -53,6 +53,9 @@ export default function UrgentBookingScreen() {
   const [showIncreaseModal, setShowIncreaseModal] = useState(false);
   
   const pulseAnim = useRef(new Animated.Value(1)).current;
+  // Client-side preview cache keyed by category+issueId so "Calculate Offer"
+  // responds instantly — the customer never waits on a network round-trip.
+  const previewCacheRef = useRef<{ key: string; data: any } | null>(null);
 
   useEffect(() => {
     socketService.connect();
@@ -116,13 +119,20 @@ export default function UrgentBookingScreen() {
     }
   }, [isSearching, pulseAnim]);
 
+  const issuesCacheRef = useRef<Record<string, any[]>>({});
+
   // Fetch "What's Happening?" issues when category changes (from backend taxonomy)
   useEffect(() => {
     if (!selectedCategory) { setIssues([]); setSelectedIssueId(null); setIssueReason(''); return; }
+    if (issuesCacheRef.current[selectedCategory]) {
+      setIssues(issuesCacheRef.current[selectedCategory]);
+      return;
+    }
     (async () => {
       try {
         const res = await apiClient.get(`/issues/${selectedCategory}`);
         const data = res.data?.data || [];
+        issuesCacheRef.current[selectedCategory] = data;
         setIssues(data);
         setSelectedIssueId(null);
         setIssueReason('');
@@ -130,9 +140,33 @@ export default function UrgentBookingScreen() {
     })();
   }, [selectedCategory]);
 
+  // Prefetch the offer preview as soon as a category + reason are chosen, so the
+  // customer's "Calculate Offer" tap resolves from cache instead of the network.
+  useEffect(() => {
+    if (!selectedCategory || !selectedIssueId) return;
+    const key = `${selectedCategory}:${selectedIssueId || ''}`;
+    if (previewCacheRef.current?.key === key) return;
+    (async () => {
+      try {
+        const res = await apiClient.post('/urgent/preview', {
+          category: selectedCategory,
+          pricingUnit: pricingModel,
+          issueId: selectedIssueId,
+        });
+        previewCacheRef.current = { key, data: res.data.data };
+      } catch { /* tap-time fetch will retry */ }
+    })();
+  }, [selectedCategory, selectedIssueId, pricingModel]);
+
   const handlePreview = async () => {
     if (!selectedCategory || !issueReason) {
       showToast({ message: t('Please select a category and reason'), type: 'error' });
+      return;
+    }
+    const key = `${selectedCategory}:${selectedIssueId || ''}`;
+    const cached = previewCacheRef.current;
+    if (cached?.key === key && cached.data) {
+      setPreviewData(cached.data);
       return;
     }
     try {
@@ -141,6 +175,7 @@ export default function UrgentBookingScreen() {
         pricingUnit: pricingModel,
         issueId: selectedIssueId,
       });
+      previewCacheRef.current = { key, data: res.data.data };
       setPreviewData(res.data.data);
     } catch (e: any) {
       showToast({ message: e?.response?.data?.error || t('Failed to generate preview'), type: 'error' });
@@ -153,7 +188,20 @@ export default function UrgentBookingScreen() {
       allowsMultipleSelection: false,
       quality: 0.6,
     });
-    if (!result.canceled) setUrgentImage({ uri: result.assets[0].uri });
+    if (result.canceled) return;
+    const uri = result.assets[0].uri;
+    setUrgentImage({ uri });
+    setUploadingImg(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', { uri, name: `urgent_${Date.now()}.jpg`, type: 'image/jpeg' } as any);
+      formData.append('purpose', 'urgent');
+      const upRes = await apiClient.post('/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+      if (upRes.data?.data?.url) {
+        setUrgentImage({ uri, remoteUrl: upRes.data.data.url });
+      }
+    } catch { /* ignored */ }
+    setUploadingImg(false);
   };
 
   const handleStartSearch = async () => {
@@ -162,26 +210,12 @@ export default function UrgentBookingScreen() {
       setIsSearching(true);
       setTimeLeft(300);
 
-      // Upload problem image (optional, continue without if it fails)
-      let imageUrl: string | undefined;
-      if (urgentImage?.uri) {
-        setUploadingImg(true);
-        try {
-          const formData = new FormData();
-          formData.append('file', { uri: urgentImage.uri, name: `urgent_${Date.now()}.jpg`, type: 'image/jpeg' } as any);
-          formData.append('purpose', 'urgent');
-          const upRes = await apiClient.post('/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
-          imageUrl = upRes.data?.data?.url;
-        } catch { /* continue without image */ }
-        setUploadingImg(false);
-      }
-
       const res = await apiClient.post('/urgent/request', {
         category: selectedCategory,
         issueReason,
         issueId: selectedIssueId,
         description,
-        imageUrl,
+        imageUrl: urgentImage?.remoteUrl,
         basePriceSnapshot: previewData.basePrice,
         initialOffer: previewData.initialOffer,
         pricingUnit: pricingModel,
@@ -189,7 +223,6 @@ export default function UrgentBookingScreen() {
       setActiveRequestId(res.data.data.requestId);
     } catch (e: any) {
       setIsSearching(false);
-      setUploadingImg(false);
       showToast({ message: e?.response?.data?.error || t('Failed to request'), type: 'error' });
     }
   };
@@ -337,7 +370,6 @@ export default function UrgentBookingScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
         <View style={styles.header}>
           <Pressable style={styles.backBtn} onPress={() => router.back()}>
             <MaterialCommunityIcons name="arrow-left" size={24} color="#202124" />
@@ -403,7 +435,7 @@ export default function UrgentBookingScreen() {
                 multiline
               />
 
-              {/* Problem image (optional, ) */}
+              {/* Problem image (optional) */}
               <Text style={[styles.pricingTitle, { marginTop: 24 }]}>{t('Photo (Optional)')}</Text>
               <View style={styles.urgentPhotoRow}>
                 {urgentImage && (
@@ -426,13 +458,11 @@ export default function UrgentBookingScreen() {
           <View style={{ height: 40 }} />
         </KeyboardAwareScrollView>
 
-        <View style={styles.footer}>
+        <KeyboardStickyView style={styles.footer} offset={{ closed: 0, opened: 0 }}>
           <Pressable style={[styles.startBtn, (!selectedCategory || !issueReason) && styles.startBtnDisabled]} onPress={handlePreview} disabled={!selectedCategory || !issueReason}>
             <Text style={styles.startBtnText}>{t('Calculate Offer')}</Text>
           </Pressable>
-        </View>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+        </KeyboardStickyView>
   );
 }
 

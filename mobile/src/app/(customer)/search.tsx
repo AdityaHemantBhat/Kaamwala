@@ -339,43 +339,45 @@ export default function SearchScreen() {
         >
           <View style={styles.workerCard}>
             {/* ── Badges ─────────────────────────────────────────────── */}
-            {(item.isGuaranteed || item.isUrgent || item.verificationStatus === 'VERIFIED' || isFeaturedActive(item.isFeatured, item.featuredUntil)) && (
-              <View style={styles.cardBadgeRow}>
-                {isFeaturedActive(item.isFeatured, item.featuredUntil) && (
-                  <FeaturedBadge featuredUntil={item.featuredUntil} isFeatured={item.isFeatured} compact />
-                )}
-                {item.verificationStatus === 'VERIFIED' && (
-                  <View style={[styles.badgePill, { backgroundColor: '#E8F5E9' }]}>
-                    <MaterialCommunityIcons name="check-decagram" size={8} color="#2E7D32" />
-                    <Text style={[styles.badgeText, { color: '#2E7D32' }]}>{t('Verified')}</Text>
-                  </View>
-                )}
-                {item.isGuaranteed && (
-                  <View style={[styles.badgePill, styles.badgeGuaranteed]}>
-                    <MaterialCommunityIcons
-                      name="check-decagram"
-                      size={8}
-                      color="#4CAF50"
-                    />
-                    <Text style={[styles.badgeText, { color: '#4CAF50' }]}>
-                      {t('Guaranteed')}
-                    </Text>
-                  </View>
-                )}
-                {item.isUrgent && (
-                  <View style={[styles.badgePill, styles.badgeUrgent]}>
-                    <MaterialCommunityIcons
-                      name="alert-decagram"
-                      size={8}
-                      color="#F44336"
-                    />
-                    <Text style={[styles.badgeText, { color: '#F44336' }]}>
-                      {t('Urgent')}
-                    </Text>
-                  </View>
-                )}
-              </View>
-            )}
+            {/* Always render the slot (minHeight reserves it) so every card in
+                a grid row starts its avatar/name at the same height — a card
+                without badges used to start higher than its badge-laden
+                neighbour, so the two cards never aligned row-to-row. */}
+            <View style={styles.cardBadgeRow}>
+              {isFeaturedActive(item.isFeatured, item.featuredUntil) && (
+                <FeaturedBadge featuredUntil={item.featuredUntil} isFeatured={item.isFeatured} compact />
+              )}
+              {item.verificationStatus === 'VERIFIED' && (
+                <View style={[styles.badgePill, { backgroundColor: '#E8F5E9' }]}>
+                  <MaterialCommunityIcons name="check-decagram" size={8} color="#2E7D32" />
+                  <Text style={[styles.badgeText, { color: '#2E7D32' }]}>{t('Verified')}</Text>
+                </View>
+              )}
+              {item.isGuaranteed && (
+                <View style={[styles.badgePill, styles.badgeGuaranteed]}>
+                  <MaterialCommunityIcons
+                    name="check-decagram"
+                    size={8}
+                    color="#4CAF50"
+                  />
+                  <Text style={[styles.badgeText, { color: '#4CAF50' }]}>
+                    {t('Guaranteed')}
+                  </Text>
+                </View>
+              )}
+              {item.isUrgent && (
+                <View style={[styles.badgePill, styles.badgeUrgent]}>
+                  <MaterialCommunityIcons
+                    name="alert-decagram"
+                    size={8}
+                    color="#F44336"
+                  />
+                  <Text style={[styles.badgeText, { color: '#F44336' }]}>
+                    {t('Urgent')}
+                  </Text>
+                </View>
+              )}
+            </View>
 
             {/* ── Availability Dot ──────────────────────────────────────── */}
             <View
@@ -1083,6 +1085,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'baseline',
     gap: 1,
+    // Cards in a grid row stretch to equal height; pin the price to the card
+    // bottom so the shorter card's price lines up with its neighbour's instead
+    // of floating mid-card.
+    marginTop: 'auto',
   },
   cardPriceSymbol: {
     fontFamily: 'SpaceMono_700Bold',
