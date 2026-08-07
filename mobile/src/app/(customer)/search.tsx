@@ -237,10 +237,18 @@ export default function SearchScreen() {
       setWorkers([]);
       setLoading(true);
 
-      // Resolve the search area (permission prompt on first visit, then a
-      // saved-address fallback) so workers are scoped to the customer's area
-      // even when they declined the location permission. areaRef is set before
-      // the first fetch so params carry lat/lng/city/state.
+      // Fetch immediately with whatever area we already have. This also aborts
+      // any in-flight request from the previous visit — without it, a slow stale
+      // response can land while the area is being resolved below and repopulate
+      // the list with the wrong category (electricians flashing in a plumber
+      // search), because the stale request's sequence still matched.
+      fetchWorkers('', initialCategory || undefined);
+
+      // Then resolve the search area (permission prompt on first visit, then a
+      // saved-address fallback) so workers get scoped to the customer's area
+      // even when they declined the location permission. Refetching here refines
+      // the fast initial results instead of blocking the whole screen on a GPS
+      // fix (which is why the search felt slow).
       (async () => {
         const area = await resolveSearchArea();
         if (cancelled) return;

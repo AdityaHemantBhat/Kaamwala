@@ -64,18 +64,21 @@ export const workerService = {
     const hasCoords = typeof lat === 'number' && !isNaN(lat) && typeof lng === 'number' && !isNaN(lng);
     const hasArea = !!(city && city.trim()) || !!(state && state.trim());
     const norm = (s: any) => (s || '').toString().trim().toLowerCase();
+    // Substring both ways: city names are free text on both sides and the
+    // reverse-geocoded name is often richer than the worker's own entry
+    // ("New Delhi" vs "Delhi"). An exact match would wrongly hide nearby
+    // workers and produce empty search screens.
+    const areaMatch = (a: string, b: string) => !!a && !!b && (a.includes(b) || b.includes(a));
     const inArea = (w: any) =>
-      (city && city.trim() && norm(w.city) === norm(city)) ||
-      (state && state.trim() && norm(w.state) === norm(state));
+      (city && city.trim() && areaMatch(norm(w.city), norm(city))) ||
+      (state && state.trim() && areaMatch(norm(w.state), norm(state)));
 
     if (hasCoords) {
-      // Precise: filter by service radius around the customer's location.
-      results = results.filter(w => (w.distanceKm ?? 9999) <= radius);
-      // Broadening fallback: nobody within the radius, but workers exist in the
-      // same city/state — surface them rather than an empty "no workers" screen.
-      if (results.length === 0 && hasArea) {
-        results = results.filter(inArea);
-      }
+      // Precise: within the service radius around the customer's location.
+      // Workers without stored coordinates can't be distance-ranked — keep them
+      // when they match the city/state area, so a profile missing lat/lng never
+      // silently empties a category that does have workers nearby.
+      results = results.filter(w => (w.distanceKm ?? Infinity) <= radius || inArea(w));
     } else if (hasArea) {
       // No coordinates (e.g. only a saved address) — fall back to area match.
       results = results.filter(inArea);
