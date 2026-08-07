@@ -117,11 +117,12 @@ export default function WorkerSupport() {
       <Modal visible={showCreate} transparent animationType="slide" onRequestClose={() => setShowCreate(false)}>
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' }}>
           <Pressable style={StyleSheet.absoluteFill} onPress={() => setShowCreate(false)} />
-          {/* Wrap the sheet in a scrollable so the description field and Submit
-              button stay reachable while the Android keyboard is open. */}
-          <KeyboardAvoidingView behavior="padding" automaticOffset style={{ maxHeight: '85%' }}>
-          <KeyboardAwareScrollView keyboardShouldPersistTaps="handled" style={{ maxHeight: '100%' }} showsVerticalScrollIndicator={false}>
-          <View style={{ backgroundColor: '#FFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 }}>
+          {/* Pin the title, chips, and action buttons; only the fields scroll, so
+              the sheet is never clipped by the keyboard. automaticOffset is off:
+              its viewPositionInWindow measurement misbehaves inside an RN Modal
+              and over-shifts the sheet, cutting off the top. */}
+          <KeyboardAvoidingView behavior="padding" automaticOffset={false} style={{ maxHeight: '85%' }}>
+          <View style={{ flex: 1, backgroundColor: '#FFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingTop: 24, paddingHorizontal: 24, paddingBottom: 24 }}>
             <View style={{ width: 40, height: 4, backgroundColor: '#DDD', borderRadius: 2, alignSelf: 'center', marginBottom: 20 }} />
             <Text style={{ fontSize: 20, fontFamily: 'Inter_700Bold', color: '#0D0D0D', marginBottom: 16 }}>{t('Create Ticket')}</Text>
             
@@ -140,10 +141,12 @@ export default function WorkerSupport() {
               ))}
             </ScrollView>
 
+            <KeyboardAwareScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} style={{ flexShrink: 1, marginBottom: 16 }}>
             <TextInput style={{ borderWidth: 1.5, borderColor: '#DDD', borderRadius: 12, padding: 14, fontSize: 14, fontFamily: 'Inter_500Medium', color: '#0D0D0D', marginBottom: 12 }}
               placeholder={t('Custom Subject')} placeholderTextColor="#AAA" value={subject} onChangeText={setSubject} maxLength={200} />
-            <TextInput style={{ borderWidth: 1.5, borderColor: '#DDD', borderRadius: 12, padding: 14, fontSize: 14, fontFamily: 'Inter_400Regular', color: '#0D0D0D', minHeight: 100, textAlignVertical: 'top', marginBottom: 16 }}
+            <TextInput style={{ borderWidth: 1.5, borderColor: '#DDD', borderRadius: 12, padding: 14, fontSize: 14, fontFamily: 'Inter_400Regular', color: '#0D0D0D', minHeight: 100, textAlignVertical: 'top' }}
               placeholder={t('Describe your issue...')} placeholderTextColor="#AAA" multiline value={description} onChangeText={setDescription} maxLength={5000} />
+            </KeyboardAwareScrollView>
             <View style={{ flexDirection: 'row', gap: 10 }}>
               <Pressable onPress={() => setShowCreate(false)} style={{ flex: 1, paddingVertical: 14, borderRadius: 16, borderWidth: 1.5, borderColor: '#DDD', alignItems: 'center' }}>
                 <Text style={{ fontSize: 14, fontFamily: 'Inter_500Medium', color: '#666' }}>{t('Cancel')}</Text>
@@ -153,7 +156,6 @@ export default function WorkerSupport() {
               </Pressable>
             </View>
           </View>
-          </KeyboardAwareScrollView>
           </KeyboardAvoidingView>
         </View>
       </Modal>
