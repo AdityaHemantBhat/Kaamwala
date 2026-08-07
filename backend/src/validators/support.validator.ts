@@ -5,6 +5,7 @@ export const createTicketSchema = z.object({
   description: z.string().min(10).max(5000),
   bookingId: z.string().optional(),
   priority: z.enum(['low', 'medium', 'high']).optional(),
+  email: z.string().email().max(200).optional().or(z.literal('')),
 });
 
 export const replySchema = z.object({

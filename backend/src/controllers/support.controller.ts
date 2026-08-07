@@ -28,7 +28,7 @@ export const supportController = {
       const [ticket, admins] = await Promise.all([
         prisma.$transaction(async (tx) => {
           const created = await tx.supportTicket.create({
-            data: { userId: req.user!.userId, subject: parsed.subject, description: parsed.description, bookingId: parsed.bookingId || undefined, priority, status: 'open' },
+            data: { userId: req.user!.userId, subject: parsed.subject, description: parsed.description, bookingId: parsed.bookingId || undefined, contactEmail: parsed.email || undefined, priority, status: 'open' },
           });
           await tx.ticketMessage.create({ data: { ticketId: created.id, senderId: req.user!.userId, message: parsed.description, isSystemMessage: true } });
           return created;

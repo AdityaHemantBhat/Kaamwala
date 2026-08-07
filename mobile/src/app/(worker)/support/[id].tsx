@@ -7,6 +7,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { Image } from 'expo-image';
 import { BrutalInkLoader } from '../../../components/ui/BrutalInkLoader';
+import { SkeletonBackHeader, SkeletonSupportTicketDetailBody } from '../../../components/ui/SkeletonScreenLayouts';
 import { apiClient } from '../../../api/client';
 import { useAuthStore } from '../../../store/auth.store';
 import { useT } from '../../../utils/i18n';
@@ -95,7 +96,12 @@ export default function UserTicketDetail() {
     }
   };
 
-  if (loading) return <SafeAreaView style={styles.safe} edges={['top']}><View style={{flex: 1, justifyContent: 'center', alignItems: 'center'}}><BrutalInkLoader /></View></SafeAreaView>;
+  if (loading) return (
+    <SafeAreaView style={styles.safe} edges={['top']}>
+      <SkeletonBackHeader paddingHorizontal={16} />
+      <SkeletonSupportTicketDetailBody />
+    </SafeAreaView>
+  );
   if (!ticket) return <SafeAreaView style={styles.safe} edges={['top']}><Text style={{textAlign: 'center', marginTop: 50}}>{t('Not Found')}</Text></SafeAreaView>;
 
   return (

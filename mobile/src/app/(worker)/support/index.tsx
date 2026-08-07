@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, ScrollView, Pressable, RefreshControl, ActivityIndicator, Modal, TextInput, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { KeyboardAvoidingView, KeyboardAwareScrollView } from 'react-native-keyboard-controller';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { apiClient } from '../../../api/client';
@@ -28,7 +28,9 @@ export default function WorkerSupport() {
   const [showCreate, setShowCreate] = useState(false);
   const [subject, setSubject] = useState('');
   const [description, setDescription] = useState('');
+  const [email, setEmail] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState('');
 
 
   const load = useCallback(async () => {
@@ -42,26 +44,36 @@ export default function WorkerSupport() {
   useEffect(() => { load(); }, [load]);
 
   const createTicket = async () => {
-    // Backend zod minimums (subject ≥3, description ≥10) — mirror them client-side
-    // so a too-short ticket surfaces as a friendly toast, never the raw zod JSON 400.
+    // Backend zod minimums (subject ≥3, description ≥10) — mirror them client-side.
+    // Shown inline in the modal, not as a toast: the Modal window renders above the
+    // app view tree, so a toast is invisible while the modal is open.
     if (subject.trim().length < 3) {
-      showToast({ message: t('Title must be at least 3 characters'), type: 'error' });
+      setFormError(t('Title must be at least 3 characters'));
       return;
     }
     if (description.trim().length < 10) {
-      showToast({ message: t('Description must be at least 10 characters'), type: 'error' });
+      setFormError(t('Description must be at least 10 characters'));
       return;
     }
+    if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setFormError(t('Enter a valid email'));
+      return;
+    }
+    setFormError('');
     setSubmitting(true);
     try {
-      await apiClient.post('/support', { subject, description });
+      await apiClient.post('/support', { subject, description, email: email.trim() || undefined });
       showToast({ message: t('Ticket created'), type: 'success' });
-      setShowCreate(false); setSubject(''); setDescription('');
+      setShowCreate(false); setSubject(''); setDescription(''); setEmail(''); setFormError('');
       load();
     } catch (e: any) {
-      showToast({ message: e?.response?.data?.error || t('Failed'), type: 'error' });
+      // Inline too — the Modal renders above the toast, so it wouldn't be visible.
+      setFormError(e?.response?.data?.error || t('Failed to create ticket'));
     } finally { setSubmitting(false); }
   };
+
+  const openCreate = () => { setShowCreate(true); setEmail(user?.email || ''); setFormError(''); };
+  const closeCreate = () => { setShowCreate(false); setFormError(''); };
 
 
 
@@ -71,8 +83,8 @@ export default function WorkerSupport() {
         <Pressable onPress={() => router.back()} style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(13,13,13,0.04)', justifyContent: 'center', alignItems: 'center' }}>
           <MaterialCommunityIcons name="arrow-left" size={20} color="#0D0D0D" />
         </Pressable>
-        <Text style={{ fontFamily: 'Inter_700Bold', fontSize: 18, color: '#0D0D0D' }}>{t('Support')}</Text>
-        <Pressable onPress={() => setShowCreate(true)} style={{ backgroundColor: '#FF5C00', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20 }}>
+        <Text style={{ fontFamily: 'Inter_700Bold', fontSize: 18, color: '#0D0D0D', flex: 1, marginLeft: 12 }}>{t('Support')}</Text>
+        <Pressable onPress={openCreate} style={{ backgroundColor: '#FF5C00', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20 }}>
           <Text style={{ fontFamily: 'Inter_600SemiBold', fontSize: 12, color: '#FFF' }}>{t('New Ticket')}</Text>
         </Pressable>
       </View>
@@ -114,15 +126,18 @@ export default function WorkerSupport() {
       )}
 
       {/* Create Ticket Modal */}
-      <Modal visible={showCreate} transparent animationType="slide" onRequestClose={() => setShowCreate(false)}>
+      <Modal visible={showCreate} transparent animationType="slide" onRequestClose={closeCreate}>
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' }}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={() => setShowCreate(false)} />
+          <Pressable style={StyleSheet.absoluteFill} onPress={closeCreate} />
           {/* Pin the title, chips, and action buttons; only the fields scroll, so
               the sheet is never clipped by the keyboard. automaticOffset is off:
               its viewPositionInWindow measurement misbehaves inside an RN Modal
               and over-shifts the sheet, cutting off the top. */}
-          <KeyboardAvoidingView behavior="padding" automaticOffset={false} style={{ maxHeight: '85%' }}>
-          <View style={{ flex: 1, backgroundColor: '#FFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingTop: 24, paddingHorizontal: 24, paddingBottom: 24 }}>
+          <KeyboardAvoidingView behavior="padding" automaticOffset={false} style={{ maxHeight: '85%', flexShrink: 1 }}>
+          {/* flexShrink (not flex:1) — the sheet must cap at the KAV's 85% max
+              height on short screens and let the fields scroll, or its top
+              (title/chips) gets clipped and the sheet sits too far down. */}
+          <View style={{ flexShrink: 1, backgroundColor: '#FFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingTop: 24, paddingHorizontal: 24, paddingBottom: 24 }}>
             <View style={{ width: 40, height: 4, backgroundColor: '#DDD', borderRadius: 2, alignSelf: 'center', marginBottom: 20 }} />
             <Text style={{ fontSize: 20, fontFamily: 'Inter_700Bold', color: '#0D0D0D', marginBottom: 16 }}>{t('Create Ticket')}</Text>
             
@@ -141,14 +156,22 @@ export default function WorkerSupport() {
               ))}
             </ScrollView>
 
-            <KeyboardAwareScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} style={{ flexShrink: 1, marginBottom: 16 }}>
+            {/* Plain ScrollView — the outer KeyboardAvoidingView already lifts the
+                whole sheet above the keyboard, so letting this scroll also pan to
+                the focused field double-shifts it and the inputs jump up. */}
+            <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} style={{ flexShrink: 1, marginBottom: 16 }}>
             <TextInput style={{ borderWidth: 1.5, borderColor: '#DDD', borderRadius: 12, padding: 14, fontSize: 14, fontFamily: 'Inter_500Medium', color: '#0D0D0D', marginBottom: 12 }}
-              placeholder={t('Custom Subject')} placeholderTextColor="#AAA" value={subject} onChangeText={setSubject} maxLength={200} />
+              placeholder={t('Contact email (optional)')} placeholderTextColor="#AAA" value={email} onChangeText={(v) => { setEmail(v); setFormError(''); }} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} maxLength={200} />
+            <TextInput style={{ borderWidth: 1.5, borderColor: '#DDD', borderRadius: 12, padding: 14, fontSize: 14, fontFamily: 'Inter_500Medium', color: '#0D0D0D', marginBottom: 12 }}
+              placeholder={t('Custom Subject')} placeholderTextColor="#AAA" value={subject} onChangeText={(v) => { setSubject(v); setFormError(''); }} maxLength={200} />
             <TextInput style={{ borderWidth: 1.5, borderColor: '#DDD', borderRadius: 12, padding: 14, fontSize: 14, fontFamily: 'Inter_400Regular', color: '#0D0D0D', minHeight: 100, textAlignVertical: 'top' }}
-              placeholder={t('Describe your issue...')} placeholderTextColor="#AAA" multiline value={description} onChangeText={setDescription} maxLength={5000} />
-            </KeyboardAwareScrollView>
+              placeholder={t('Describe your issue...')} placeholderTextColor="#AAA" multiline value={description} onChangeText={(v) => { setDescription(v); setFormError(''); }} maxLength={5000} />
+            </ScrollView>
+            {formError ? (
+              <Text style={{ fontFamily: 'Inter_500Medium', fontSize: 12, color: '#E53935', marginBottom: 10 }}>{formError}</Text>
+            ) : null}
             <View style={{ flexDirection: 'row', gap: 10 }}>
-              <Pressable onPress={() => setShowCreate(false)} style={{ flex: 1, paddingVertical: 14, borderRadius: 16, borderWidth: 1.5, borderColor: '#DDD', alignItems: 'center' }}>
+              <Pressable onPress={closeCreate} style={{ flex: 1, paddingVertical: 14, borderRadius: 16, borderWidth: 1.5, borderColor: '#DDD', alignItems: 'center' }}>
                 <Text style={{ fontSize: 14, fontFamily: 'Inter_500Medium', color: '#666' }}>{t('Cancel')}</Text>
               </Pressable>
               <Pressable onPress={createTicket} disabled={!subject.trim() || !description.trim() || submitting} style={{ flex: 1, paddingVertical: 14, borderRadius: 16, backgroundColor: '#FF5C00', alignItems: 'center', opacity: (!subject.trim() || !description.trim() || submitting) ? 0.5 : 1 }}>
