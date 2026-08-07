@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, ScrollView, Pressable, RefreshControl, ActivityIndicator, Modal, TextInput } from 'react-native';
+import { View, Text, ScrollView, Pressable, RefreshControl, ActivityIndicator, Modal, TextInput, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
+import { KeyboardAvoidingView, KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { apiClient } from '../../../api/client';
@@ -42,7 +42,16 @@ export default function WorkerSupport() {
   useEffect(() => { load(); }, [load]);
 
   const createTicket = async () => {
-    if (!subject.trim() || !description.trim()) return;
+    // Backend zod minimums (subject ≥3, description ≥10) — mirror them client-side
+    // so a too-short ticket surfaces as a friendly toast, never the raw zod JSON 400.
+    if (subject.trim().length < 3) {
+      showToast({ message: t('Title must be at least 3 characters'), type: 'error' });
+      return;
+    }
+    if (description.trim().length < 10) {
+      showToast({ message: t('Description must be at least 10 characters'), type: 'error' });
+      return;
+    }
     setSubmitting(true);
     try {
       await apiClient.post('/support', { subject, description });
@@ -106,7 +115,12 @@ export default function WorkerSupport() {
 
       {/* Create Ticket Modal */}
       <Modal visible={showCreate} transparent animationType="slide" onRequestClose={() => setShowCreate(false)}>
-        <KeyboardAvoidingView behavior="padding" automaticOffset style={{ flex: 1, justifyContent: 'flex-end' }}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' }}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setShowCreate(false)} />
+          {/* Wrap the sheet in a scrollable so the description field and Submit
+              button stay reachable while the Android keyboard is open. */}
+          <KeyboardAvoidingView behavior="padding" automaticOffset style={{ maxHeight: '85%' }}>
+          <KeyboardAwareScrollView keyboardShouldPersistTaps="handled" style={{ maxHeight: '100%' }} showsVerticalScrollIndicator={false}>
           <View style={{ backgroundColor: '#FFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 }}>
             <View style={{ width: 40, height: 4, backgroundColor: '#DDD', borderRadius: 2, alignSelf: 'center', marginBottom: 20 }} />
             <Text style={{ fontSize: 20, fontFamily: 'Inter_700Bold', color: '#0D0D0D', marginBottom: 16 }}>{t('Create Ticket')}</Text>
@@ -139,7 +153,9 @@ export default function WorkerSupport() {
               </Pressable>
             </View>
           </View>
-        </KeyboardAvoidingView>
+          </KeyboardAwareScrollView>
+          </KeyboardAvoidingView>
+        </View>
       </Modal>
 
     </SafeAreaView>
