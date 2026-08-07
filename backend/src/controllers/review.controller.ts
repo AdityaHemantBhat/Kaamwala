@@ -2,6 +2,8 @@ import { Response } from 'express';
 import { prisma } from '../config/prisma';
 import { sendResponse, sendError } from '../utils/response';
 import { AuthRequest } from '../middleware/auth.middleware';
+import { logger } from '../utils/logger';
+import { grantEarnedBadges } from '../services/achievement.service';
 
 export const reviewController = {
   createReview: async (req: AuthRequest, res: Response) => {
@@ -42,6 +44,17 @@ export const reviewController = {
           totalRatings: allRatings.length,
         },
       });
+
+      // A rating change can unlock rating-based badges (RISING_STAR /
+      // TRUSTED_PRO). Best-effort — a badge failure must not fail the review.
+      try {
+        await grantEarnedBadges(booking.workerId);
+      } catch (e: any) {
+        logger.warn('Badge grant after review skipped', {
+          workerId: booking.workerId,
+          error: e?.message,
+        });
+      }
 
       sendResponse(res, 201, review, 'Review submitted!');
     } catch (e: any) {

@@ -13,6 +13,7 @@ import { referralService } from './referral.service';
 import { applyWarranty } from './guarantee.service';
 import { recordWorkerStreak } from '../utils/activity';
 import { paymentCalculationService } from './paymentCalculation.service';
+import { grantEarnedBadges } from './achievement.service';
 
 
 export const bookingService = {
@@ -565,5 +566,18 @@ export const bookingService = {
         isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
       },
     );
+
+    // Completing a paid job may unlock a milestone badge. Post-commit and
+    // best-effort: a badge-grant failure must never roll back a payout that
+    // already committed above.
+    try {
+      await grantEarnedBadges(booking.workerId);
+    } catch (e: any) {
+      logger.warn('Badge grant after payout skipped', {
+        bookingId,
+        workerId: booking.workerId,
+        error: e?.message,
+      });
+    }
   }
 };

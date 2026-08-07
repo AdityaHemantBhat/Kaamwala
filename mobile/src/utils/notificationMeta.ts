@@ -52,6 +52,8 @@ export const NOTIFICATION_TYPE_META: Record<string, NotificationMeta> = {
   rating_received: { icon: 'star', color: '#D4A017' },
   referral_bonus: { icon: 'gift', color: '#6C5CE7' },
   broadcast: { icon: 'bullhorn', color: '#FF5C00' },
+  // Achievements
+  achievement: { icon: 'trophy-award', color: '#D4A017' },
 };
 
 export function getNotificationMeta(type: string): NotificationMeta {
@@ -100,6 +102,8 @@ export function resolveNotificationRoute(
       return isWorker ? '/(worker)/verification' : home;
     case 'subscription':
       return isWorker ? '/(worker)/subscription' : '/(customer)/subscription';
+    case 'achievement':
+      return isWorker ? '/(worker)/achievements' : home;
     case 'withdrawal':
     case 'wallet':
     case 'wallet_credited':
