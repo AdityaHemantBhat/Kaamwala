@@ -37,24 +37,20 @@ export default function UrgentBookingScreen() {
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [issueReason, setIssueReason] = useState<string>('');
   const [description, setDescription] = useState<string>('');
-  const [issues, setIssues] = useState<any[]>([]); // What's Happening? options from backend
+  const [issues, setIssues] = useState<any[]>([]);
   const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null);
   const [pricingModel] = useState<'PER_HOUR' | 'FLAT'>('FLAT');
-  const [urgentImage, setUrgentImage] = useState<any>(null); // { uri, remoteUrl? }
+  const [urgentImage, setUrgentImage] = useState<any>(null);
   const [uploadingImg, setUploadingImg] = useState(false);
 
-  // Preview & Searching states
   const [previewData, setPreviewData] = useState<any>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [activeRequestId, setActiveRequestId] = useState<string | null>(null);
-  
-  // Timer & Increase Offer logic
-  const [timeLeft, setTimeLeft] = useState(300); // 5 minutes
+
+  const [timeLeft, setTimeLeft] = useState(300);
   const [showIncreaseModal, setShowIncreaseModal] = useState(false);
-  
+
   const pulseAnim = useRef(new Animated.Value(1)).current;
-  // Client-side preview cache keyed by category+issueId so "Calculate Offer"
-  // responds instantly — the customer never waits on a network round-trip.
   const previewCacheRef = useRef<{ key: string; data: any } | null>(null);
 
   useEffect(() => {
@@ -71,24 +67,23 @@ export default function UrgentBookingScreen() {
       showToast({ message: t('Worker found!'), type: 'success' });
       router.replace(`/(customer)/live-tracking?bookingId=${data.bookingId}`);
     };
-    
+
     const handleOfferIncreased = (data: any) => {
       if (data.requestId === activeRequestId) {
         setPreviewData((prev: any) => ({ ...prev, initialOffer: data.newOffer }));
-        setTimeLeft(300); // reset timer
+        setTimeLeft(300);
       }
     };
 
     socketService.on('urgent_accepted', handleAccepted);
     socketService.on('urgent_offer_increased', handleOfferIncreased);
-    
-    return () => { 
-      socketService.off('urgent_accepted', handleAccepted); 
-      socketService.off('urgent_offer_increased', handleOfferIncreased); 
+
+    return () => {
+      socketService.off('urgent_accepted', handleAccepted);
+      socketService.off('urgent_offer_increased', handleOfferIncreased);
     };
   }, [activeRequestId, router, showToast, t]);
 
-  // Countdown timer — only depends on isSearching/timeLeft
   useEffect(() => {
     let timer: ReturnType<typeof setInterval> | undefined;
     if (isSearching && timeLeft > 0) {
@@ -106,7 +101,6 @@ export default function UrgentBookingScreen() {
     return () => clearInterval(timer);
   }, [isSearching, timeLeft]);
 
-  // Continuous pulse animation — only depends on isSearching
   useEffect(() => {
     if (isSearching) {
       const loop = Animated.loop(
@@ -121,7 +115,6 @@ export default function UrgentBookingScreen() {
 
   const issuesCacheRef = useRef<Record<string, any[]>>({});
 
-  // Fetch "What's Happening?" issues when category changes (from backend taxonomy)
   useEffect(() => {
     if (!selectedCategory) { setIssues([]); setSelectedIssueId(null); setIssueReason(''); return; }
     if (issuesCacheRef.current[selectedCategory]) {
@@ -140,8 +133,6 @@ export default function UrgentBookingScreen() {
     })();
   }, [selectedCategory]);
 
-  // Prefetch the offer preview as soon as a category + reason are chosen, so the
-  // customer's "Calculate Offer" tap resolves from cache instead of the network.
   useEffect(() => {
     if (!selectedCategory || !selectedIssueId) return;
     const key = `${selectedCategory}:${selectedIssueId || ''}`;
@@ -154,7 +145,7 @@ export default function UrgentBookingScreen() {
           issueId: selectedIssueId,
         });
         previewCacheRef.current = { key, data: res.data.data };
-      } catch { /* tap-time fetch will retry */ }
+      } catch { }
     })();
   }, [selectedCategory, selectedIssueId, pricingModel]);
 
@@ -200,7 +191,7 @@ export default function UrgentBookingScreen() {
       if (upRes.data?.data?.url) {
         setUrgentImage({ uri, remoteUrl: upRes.data.data.url });
       }
-    } catch { /* ignored */ }
+    } catch { }
     setUploadingImg(false);
   };
 
@@ -260,14 +251,10 @@ export default function UrgentBookingScreen() {
     return (
       <SafeAreaView style={styles.safe} edges={['top']}>
         <View style={styles.searchingContainer}>
-          {/* Radar animation */}
           <View style={styles.radarArea}>
-            {/* Expanding rings */}
             <Animated.View style={[styles.radarRingOuter, { transform: [{ scale: pulseAnim }], opacity: pulseAnim.interpolate({ inputRange: [1, 1.3], outputRange: [0.35, 0] }) }]} />
             <Animated.View style={[styles.radarRingMid, { transform: [{ scale: pulseAnim }], opacity: pulseAnim.interpolate({ inputRange: [1, 1.3], outputRange: [0.25, 0] }) }]} />
-            {/* Static inner ring */}
             <View style={styles.radarRingStatic} />
-            {/* Center icon */}
             <View style={styles.radarCenter}>
               {selCat && (
                 <View style={[styles.radarIconCircle, { backgroundColor: selCat.bg }]}>
@@ -277,7 +264,6 @@ export default function UrgentBookingScreen() {
             </View>
           </View>
 
-          {/* Status header */}
           <View style={styles.statusHeader}>
             <Text style={styles.searchingTitle}>{t('Finding nearby workers')}</Text>
             <View style={styles.statusRow}>
@@ -286,7 +272,6 @@ export default function UrgentBookingScreen() {
             </View>
           </View>
 
-          {/* Offer card */}
           {previewData && (
             <View style={styles.offerCard}>
               <View style={styles.offerCardLeft}>
@@ -300,7 +285,6 @@ export default function UrgentBookingScreen() {
             </View>
           )}
 
-          {/* Actions */}
           <Pressable style={styles.increaseBtn} onPress={() => setShowIncreaseModal(true)}>
             <MaterialCommunityIcons name="trending-up" size={18} color="#FFF" />
             <Text style={styles.increaseBtnText}>{t('Increase Offer')}</Text>
@@ -316,7 +300,7 @@ export default function UrgentBookingScreen() {
             <View style={styles.modalContent}>
               <Text style={styles.modalTitle}>{t('Still looking for a worker?')}</Text>
               <Text style={styles.modalSub}>{t('Increase your offer to attract workers faster. 100% of the increase goes to the worker.')}</Text>
-              
+
               <View style={styles.increaseOptions}>
                 {[20, 40, 50, 100].map(amt => (
                   <Pressable key={amt} style={styles.increaseOptionBtn} onPress={() => handleIncreaseOffer(amt)}>
@@ -346,7 +330,7 @@ export default function UrgentBookingScreen() {
             <Text style={styles.headerTitle}>{t('Confirm Offer')}</Text>
           </View>
         </View>
-        
+
         <View style={{ flex: 1, padding: 24, justifyContent: 'center' }}>
           <View style={styles.previewCard}>
             <MaterialCommunityIcons name="lightning-bolt" size={32} color="#FF5C00" />
@@ -380,8 +364,15 @@ export default function UrgentBookingScreen() {
           </View>
         </View>
 
-        <KeyboardAwareScrollView style={{ flex: 1 }} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled" bottomOffset={16}>
+        <KeyboardAwareScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          extraHeight={200}
+          enableAutomaticScroll
+          enableOnAndroid={true}
+        >
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>{t('Select service')}</Text>
           </View>
@@ -426,7 +417,7 @@ export default function UrgentBookingScreen() {
                 </View>
               )}
 
-              <Text style={[styles.pricingTitle, { marginTop: 24 }]}>{t('Description (Optional)')}</Text>
+              <Text style={[styles.pricingTitle, { marginTop: 16 }]}>{t('Description (Optional)')}</Text>
               <TextInput
                 style={styles.descInput}
                 placeholder={t('Add details...')}
@@ -435,8 +426,7 @@ export default function UrgentBookingScreen() {
                 multiline
               />
 
-              {/* Problem image (optional) */}
-              <Text style={[styles.pricingTitle, { marginTop: 24 }]}>{t('Photo (Optional)')}</Text>
+              <Text style={[styles.pricingTitle, { marginTop: 12 }]}>{t('Photo (Optional)')}</Text>
               <View style={styles.urgentPhotoRow}>
                 {urgentImage && (
                   <View style={styles.urgentPhotoWrap}>
@@ -453,75 +443,53 @@ export default function UrgentBookingScreen() {
                   </Pressable>
                 )}
               </View>
+
+              <Pressable
+                style={[styles.startBtn, (!selectedCategory || !issueReason) && styles.startBtnDisabled, { marginTop: 12 }]}
+                onPress={handlePreview}
+                disabled={!selectedCategory || !issueReason}
+              >
+                <Text style={styles.startBtnText}>{t('Calculate Offer')}</Text>
+              </Pressable>
             </View>
           )}
-          <View style={{ height: 40 }} />
+          <View style={{ height: 0 }} />
         </KeyboardAwareScrollView>
-
-        <KeyboardStickyView style={styles.footer} offset={{ closed: 0, opened: 0 }}>
-          <Pressable style={[styles.startBtn, (!selectedCategory || !issueReason) && styles.startBtnDisabled]} onPress={handlePreview} disabled={!selectedCategory || !issueReason}>
-            <Text style={styles.startBtnText}>{t('Calculate Offer')}</Text>
-          </Pressable>
-        </KeyboardStickyView>
-  );
-}
+      </SafeAreaView>
+    );
+  }
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#F5F0E8' },
-  header: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 24, paddingVertical: 14,
-  },
-  backBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#FFF', justifyContent: 'center', alignItems: 'center', marginRight: 12, elevation: 1 },
-  headerTitle: { fontFamily: 'Inter_700Bold', fontSize: 22, color: '#202124' },
-  headerSub: { fontFamily: 'Inter_400Regular', fontSize: 12, color: '#8A8A8A', marginTop: 1 },
-  
-  scrollContent: { paddingBottom: 40 },
-  sectionHeader: { marginHorizontal: 24, marginBottom: 12 },
-  sectionTitle: { fontFamily: 'Inter_600SemiBold', fontSize: 15, color: '#202124' },
-  
-  grid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 20, gap: 8 },
-  card: {
-    width: (width - 48 - 8) / 2,
-    backgroundColor: '#FFF',
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1.5,
-    borderColor: 'transparent',
-    elevation: 2,
-  },
-  cardSelected: { backgroundColor: '#F9FAFB' },
-  cardIcon: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
-  cardCheck: { position: 'absolute', top: 12, right: 12 },
-  cardName: { fontFamily: 'Inter_600SemiBold', fontSize: 14, color: '#202124' },
-  
-  pricingSection: { marginTop: 24, marginHorizontal: 24 },
-  pricingTitle: { fontFamily: 'Inter_600SemiBold', fontSize: 15, color: '#202124', marginBottom: 12 },
-  reasonsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  reasonChip: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, borderWidth: 1, borderColor: '#D1D5DB', backgroundColor: '#FFF' },
-  reasonText: { fontFamily: 'Inter_500Medium', fontSize: 13, color: '#4B5563' },
-  descInput: { backgroundColor: '#FFF', borderRadius: 12, padding: 16, minHeight: 100, textAlignVertical: 'top', fontFamily: 'Inter_400Regular', borderWidth: 1, borderColor: '#E5E7EB' },
-  urgentPhotoRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  urgentPhotoWrap: { position: 'relative' },
-  urgentPhotoThumb: { width: 76, height: 76, borderRadius: 12, backgroundColor: '#EDE8DC' },
-  urgentPhotoRemove: {
-    position: 'absolute', top: -6, right: -6,
-    width: 22, height: 22, borderRadius: 11,
-    backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center',
-  },
-  urgentPhotoAdd: {
-    width: 76, height: 76, borderRadius: 12,
-    borderWidth: 1.5, borderStyle: 'dashed', borderColor: '#C8C0B0',
-    backgroundColor: '#FFF8F0',
-    justifyContent: 'center', alignItems: 'center', gap: 2,
-  },
-  urgentPhotoAddText: { fontFamily: 'Inter_500Medium', fontSize: 10, color: '#8A8A8A' },
-  
-  footer: { backgroundColor: '#FFF', paddingHorizontal: 24, paddingVertical: 16, paddingBottom: Platform.OS === 'ios' ? 24 : 16, elevation: 8 },
-  startBtn: { backgroundColor: '#202124', borderRadius: 16, flexDirection: 'row', height: 56, justifyContent: 'center', alignItems: 'center' },
-  startBtnDisabled: { backgroundColor: '#D1D5DB' },
-  startBtnText: { color: '#FFF', fontFamily: 'Inter_600SemiBold', fontSize: 16 },
-
+  header: { flexDirection: 'row', alignItems: 'center', padding: 24, paddingBottom: 0, backgroundColor: '#F5F0E8' },
+  backBtn: { padding: 8, marginLeft: -8 },
+  headerTitle: { fontFamily: 'Inter_700Bold', fontSize: 20, color: '#0D0D0D' },
+  headerSub: { fontFamily: 'Inter_400Regular', fontSize: 13, color: '#5F6368', marginTop: 2 },
+  scrollContent: { padding: 24, paddingBottom: 24},
+  sectionHeader: { marginBottom: 16 },
+  sectionTitle: { fontFamily: 'Inter_600SemiBold', fontSize: 16, color: '#202124' },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 24 },
+  card: { width: '31%', padding: 12, borderRadius: 16, backgroundColor: '#FFFFFF', alignItems: 'center', borderWidth: 1, borderColor: '#FFFFFF' },
+  cardSelected: { backgroundColor: '#FFFFFF', elevation: 2, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 4, borderColor: '#FF5C00' },
+  cardIcon: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center', marginBottom: 8 },
+  cardCheck: { position: 'absolute', top: 8, right: 8 },
+  cardName: { fontFamily: 'Inter_500Medium', fontSize: 12, color: '#5F6368', textAlign: 'center' },
+  pricingSection: { marginTop: 8 },
+  pricingTitle: { fontFamily: 'Inter_600SemiBold', fontSize: 16, color: '#202124' },
+  reasonsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
+  reasonChip: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#DADCE0' },
+  reasonText: { fontFamily: 'Inter_500Medium', fontSize: 13, color: '#5F6368' },
+  descInput: { fontFamily: 'Inter_400Regular', fontSize: 15, padding: 16, backgroundColor: '#FFFFFF', borderRadius: 12, marginTop: 12, minHeight: 100, textAlignVertical: 'top', borderWidth: 1, borderColor: '#DADCE0' },
+  urgentPhotoRow: { flexDirection: 'row', marginTop: 8 },
+  urgentPhotoWrap: { width: 80, height: 80, borderRadius: 12, overflow: 'hidden' },
+  urgentPhotoThumb: { width: 80, height: 80 },
+  urgentPhotoRemove: { position: 'absolute', top: 4, right: 4, backgroundColor: 'rgba(0,0,0,0.4)', borderRadius: 10, padding: 2 },
+  urgentPhotoAdd: { width: 80, height: 80, borderRadius: 12, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#DADCE0', borderStyle: 'dashed' },
+  urgentPhotoAddText: { fontFamily: 'Inter_500Medium', fontSize: 11, color: '#8A8A8A', marginTop: 4 },
+  footer: { padding: 16, paddingBottom: Platform.OS === 'ios' ? 16 : 12, backgroundColor: '#F5F0E8', borderTopWidth: 1, borderTopColor: 'rgba(13,13,13,0.08)' },
+  startBtn: { backgroundColor: '#202124', padding: 16, borderRadius: 16, alignItems: 'center', flexDirection: 'row', justifyContent: 'center' },
+  startBtnDisabled: { backgroundColor: '#DADCE0' },
+  startBtnText: { fontFamily: 'Inter_600SemiBold', fontSize: 16, color: '#FFF' },
   searchingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
   radarArea: { width: 220, height: 220, justifyContent: 'center', alignItems: 'center', marginBottom: 32 },
   radarRingOuter: { position: 'absolute', width: 200, height: 200, borderRadius: 100, backgroundColor: '#FF5C00' },
@@ -529,43 +497,26 @@ const styles = StyleSheet.create({
   radarRingStatic: { position: 'absolute', width: 132, height: 132, borderRadius: 66, borderWidth: 2, borderColor: 'rgba(255,92,0,0.25)' },
   radarCenter: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#FFF', justifyContent: 'center', alignItems: 'center', elevation: 5, shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, zIndex: 2 },
   radarIconCircle: { width: 60, height: 60, borderRadius: 30, justifyContent: 'center', alignItems: 'center' },
-
   statusHeader: { alignItems: 'center', marginBottom: 24 },
   searchingTitle: { fontFamily: 'Inter_700Bold', fontSize: 22, color: '#202124', textAlign: 'center', marginBottom: 10 },
   statusRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#34A853' },
   statusLive: { fontFamily: 'Inter_500Medium', fontSize: 13, color: '#5F6368' },
-
-  offerCard: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: '#FFF', borderRadius: 20,
-    padding: 20, marginBottom: 20,
-    width: '100%', maxWidth: 320,
-    elevation: 2, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, shadowOffset: { width: 0, height: 2 },
-    borderWidth: 1, borderColor: '#F0EDE6',
-  },
+  offerCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', borderRadius: 20, padding: 20, marginBottom: 20, width: '100%', maxWidth: 320, elevation: 2, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, borderWidth: 1, borderColor: '#F0EDE6' },
   offerCardLeft: { flex: 1 },
   offerLabel: { fontFamily: 'Inter_500Medium', fontSize: 12, color: '#8A8A8A', marginBottom: 4 },
   offerValue: { fontFamily: 'Inter_700Bold', fontSize: 28, color: '#202124' },
   offerCardRight: { alignItems: 'flex-end' },
   timerValue: { fontFamily: 'Inter_700Bold', fontSize: 24, color: '#FF5C00' },
   timerLabel: { fontFamily: 'Inter_400Regular', fontSize: 11, color: '#8A8A8A', marginTop: 2 },
-
-  increaseBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    backgroundColor: '#FF5C00', paddingHorizontal: 36, paddingVertical: 14,
-    borderRadius: 16, marginBottom: 20,
-    elevation: 3, shadowColor: '#FF5C00', shadowOpacity: 0.3, shadowRadius: 8, shadowOffset: { width: 0, height: 3 },
-  },
+  increaseBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#FF5C00', paddingHorizontal: 36, paddingVertical: 14, borderRadius: 16, marginBottom: 20, elevation: 3, shadowColor: '#FF5C00', shadowOpacity: 0.3, shadowRadius: 8, shadowOffset: { width: 0, height: 3 } },
   increaseBtnText: { fontFamily: 'Inter_600SemiBold', fontSize: 15, color: '#FFF' },
   cancelSearchBtn: { padding: 12 },
   cancelSearchText: { fontFamily: 'Inter_500Medium', fontSize: 15, color: '#E53935' },
-
   previewCard: { backgroundColor: '#FFF', padding: 24, borderRadius: 24, alignItems: 'center', elevation: 4 },
   previewTitle: { fontFamily: 'Inter_600SemiBold', fontSize: 16, color: '#8A8A8A', marginTop: 12 },
   previewOffer: { fontFamily: 'Inter_700Bold', fontSize: 48, color: '#FF5C00', marginVertical: 8 },
   previewDesc: { fontFamily: 'Inter_400Regular', fontSize: 14, color: '#5F6368', textAlign: 'center' },
-
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modalContent: { backgroundColor: '#FFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, alignItems: 'center' },
   modalTitle: { fontFamily: 'Inter_700Bold', fontSize: 20, color: '#202124', marginBottom: 8 },

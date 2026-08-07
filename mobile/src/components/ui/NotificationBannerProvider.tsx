@@ -184,10 +184,6 @@ export const NotificationBannerProvider: React.FC<{ children: React.ReactNode }>
         dismiss();
       }
     }, VISIBLE_MS);
-
-    return () => {
-      clearTimers();
-    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current, queue.length]);
 

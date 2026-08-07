@@ -42,6 +42,59 @@ export async function expireUrgentRequests(): Promise<number> {
 }
 
 /**
+ * Expire stale PENDING and NEGOTIATING booking requests (24 hours).
+ * Runs every hour.
+ */
+export async function expirePendingBookings(): Promise<number> {
+  try {
+    const expired = await prisma.booking.findMany({
+      where: {
+        status: { in: ['PENDING', 'NEGOTIATING'] },
+        createdAt: { lt: new Date(Date.now() - 24 * 60 * 60 * 1000) },
+      },
+      select: { id: true, customerId: true, workerId: true },
+    });
+
+    if (expired.length > 0) {
+      const { cancellationService } = await import('./cancellation.service');
+      for (const booking of expired) {
+        try {
+          // Cancel it systemically.
+          // Using processCustomerCancellation because it's the safest way to cleanly terminate without worker penalties
+          // but actually we should just update status directly if it's expired to avoid customer penalties.
+          await prisma.booking.update({
+            where: { id: booking.id },
+            data: { status: 'CANCELLED', cancelledAt: new Date(), cancelledBy: 'SYSTEM', cancelReason: 'Request expired' }
+          });
+          
+          getIo().emit('booking_status_update', { id: booking.id, status: 'CANCELLED' });
+          
+          try {
+            const { notificationService } = await import('./notification.service');
+            await notificationService.sendPushNotification(
+              booking.customerId, 'Booking Expired',
+              'Your booking request expired because it was not accepted within 24 hours.',
+              'booking_update', { bookingId: booking.id },
+            );
+            await notificationService.sendPushNotification(
+              booking.workerId, 'Booking Expired',
+              'A booking request expired because you did not respond within 24 hours.',
+              'booking_update', { bookingId: booking.id },
+            );
+          } catch {}
+        } catch (e) {
+          logger.error(`Failed to expire booking ${booking.id}:`, e);
+        }
+      }
+    }
+    return expired.length;
+  } catch (e) {
+    logger.error('Pending booking expiry failed:', e);
+    return 0;
+  }
+}
+
+/**
  * Clean orphaned media (draft uploads unlinked to any booking/request after 24h).
  * Runs hourly.
  */
@@ -138,5 +191,8 @@ export function startScheduledJobs(): void {
 
   // Pricing anomaly monitoring — daily
   setInterval(() => { detectPricingAnomalies().catch(() => {}); }, 24 * 60 * 60 * 1000);
+
+  // Pending booking expiry — hourly
+  setInterval(() => { expirePendingBookings().catch(() => {}); }, 60 * 60 * 1000);
 }
 

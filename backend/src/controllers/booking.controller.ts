@@ -17,7 +17,7 @@ export const bookingController = {
   updateStatus: async (req: AuthRequest, res: Response) => {
     try {
       const { id } = req.params;
-      const { status, otp, reasonCategory, cancelReason } = req.body;
+      const { status, otp, reasonCategory, cancelReason, completionPhotos } = req.body;
 
       if (!status || !VALID_STATUSES.includes(status)) {
         return sendError(res, 400, `Invalid status. Must be one of: ${VALID_STATUSES.join(', ')}`);
@@ -28,7 +28,7 @@ export const bookingController = {
         return sendResponse(res, 200, result, 'Cancellation initiated');
       }
 
-      const booking = await bookingService.updateStatus(id, status, req.user!.userId, req.user!.role, otp);
+      const booking = await bookingService.updateStatus(id, status, req.user!.userId, req.user!.role, otp, completionPhotos);
       sendResponse(res, 200, booking, `Booking ${status.toLowerCase()}`);
     } catch (e: any) {
       const statusCode = e.message.includes('not found') ? 404
@@ -92,6 +92,7 @@ export const bookingController = {
           platformFee: true,
           totalAmount: true,
           workerEarnings: true,
+          completionPhotos: true,
           acceptedAt: true,
           onTheWayAt: true,
           startedAt: true,
@@ -171,6 +172,7 @@ export const bookingController = {
           platformFee: true,
           totalAmount: true,
           workerEarnings: true,
+          completionPhotos: true,
           acceptedAt: true,
           onTheWayAt: true,
           startedAt: true,
@@ -263,6 +265,7 @@ export const bookingController = {
           marketRate: true,
           customerSaved: true,
           materialCost: true,
+          completionPhotos: true,
           visitFee: true,
           tip: true,
           arrivalOtp: true,

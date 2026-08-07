@@ -133,11 +133,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   logo: {
-    width: 150,
-    height: 150,
+    width: 280,
+    height: 280,
+    marginTop: -40, // Pull it up slightly to balance the huge padding
   },
   wordWrap: {
-    marginTop: 26,
+    marginTop: -10, // Pull the wordmark up closer to the logo
   },
   tagline: {
     fontFamily: 'Inter_400Regular',

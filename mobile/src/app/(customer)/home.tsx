@@ -251,31 +251,54 @@ export default function CustomerHome() {
         </View>
 
         {/* ── Suggested workers ── */}
-        {data?.suggestions?.length > 0 && (
-          <View style={styles.sectionOuter}>
-            <Text style={styles.sectionTitle}>{t('Suggested for you')}</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingRight: 24 }}>
-              {/* Filter out entries with no resolvable profile id so we never
-                  navigate to /worker/undefined (which would crash/404). */}
-              {data.suggestions.filter((w: any) => w && w.workerId).map((w: any, i: number) => {
-                const matchPct = Number.isFinite(w.score) ? Math.round((w.score / 135) * 100) : 0;
-                return (
-                <Pressable key={w.workerId} style={styles.suggestionCard} onPress={() => router.push(`/(customer)/worker/${w.workerId}`)}
-                  accessibilityRole="button" accessibilityLabel={`View ${w.user?.name || t('worker')}'s profile`}>
-                  <View style={styles.scoreBadge}>
-                    <MaterialCommunityIcons name="check-circle-outline" size={12} color="#B28200" />
-                    <Text style={styles.scoreText}>{matchPct}%</Text>
-                  </View>
-                  <Text style={styles.workerName}>{w.user?.name || t('Top Match')}</Text>
-                  {w.reasons?.slice(0, 2).map((r: string, ri: number) => (
-                    <Text key={ri} style={styles.reasonTag}>{r}</Text>
-                  ))}
-                </Pressable>
-                );
-              })}
-            </ScrollView>
-          </View>
-        )}
+        {data?.suggestions?.length > 0 && (() => {
+          const getReasonFormatting = (reason: string) => {
+            const lower = reason.toLowerCase();
+            if (lower.includes('guaranteed')) {
+              return { icon: 'shield-check', color: '#1A5C2A', bg: '#E8F5E9' };
+            }
+            if (lower.includes('worked together') || lower.includes('past')) {
+              return { icon: 'handshake', color: '#5E35B1', bg: '#EDE7F6' };
+            }
+            if (lower.includes('expert') || lower.includes('top')) {
+              return { icon: 'star-circle', color: '#1A73E8', bg: '#E8F0FE' };
+            }
+            if (lower.includes('fast') || lower.includes('quick') || lower.includes('near')) {
+              return { icon: 'lightning-bolt', color: '#E65100', bg: '#FFF3E0' };
+            }
+            return { icon: 'check-circle', color: '#5F6368', bg: '#F1F3F4' };
+          };
+
+          return (
+            <View style={styles.sectionOuter}>
+              <Text style={styles.sectionTitle}>{t('Suggested for you')}</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingRight: 24, paddingBottom: 8 }}>
+                {data.suggestions.filter((w: any) => w && w.workerId).map((w: any, i: number) => {
+                  const matchPct = Number.isFinite(w.score) ? Math.round((w.score / 135) * 100) : 0;
+                  return (
+                    <Pressable key={w.workerId} style={styles.suggestionCard} onPress={() => router.push(`/(customer)/worker/${w.workerId}`)}
+                      accessibilityRole="button" accessibilityLabel={`View ${w.user?.name || t('worker')}'s profile`}>
+                      <View style={styles.scoreBadge}>
+                        <MaterialCommunityIcons name="check-decagram" size={14} color="#FF8C00" />
+                        <Text style={styles.scoreText}>{matchPct}% {t('Match')}</Text>
+                      </View>
+                      <Text style={styles.workerName} numberOfLines={1}>{w.user?.name || t('Top Match')}</Text>
+                      {w.reasons?.slice(0, 2).map((r: string, ri: number) => {
+                        const fmt = getReasonFormatting(r);
+                        return (
+                          <View key={ri} style={[styles.reasonTag, { backgroundColor: fmt.bg }]}>
+                            <MaterialCommunityIcons name={fmt.icon as any} size={12} color={fmt.color} style={{ marginRight: 4 }} />
+                            <Text style={[styles.reasonText, { color: fmt.color }]} numberOfLines={2}>{r}</Text>
+                          </View>
+                        );
+                      })}
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            </View>
+          );
+        })()}
 
         {/* ── Top workers ── */}
         {data?.topWorkers?.length > 0 && (
@@ -318,27 +341,33 @@ export default function CustomerHome() {
                 const price = Number(w.baseAmount || 0);
                 return (
                   <View key={w.id} style={styles.rebookCard}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
                       {avatarUrl ? (
                         <Image source={{ uri: avatarUrl }} style={styles.rebookAvatar} />
                       ) : (
                         <View style={styles.rebookAvatarPlaceholder}>
-                          <Text style={{ fontFamily: 'Inter_700Bold', fontSize: 16, color: '#F5F0E8' }}>{(workerName || 'W')[0].toUpperCase()}</Text>
+                          <Text style={{ fontFamily: 'Inter_700Bold', fontSize: 18, color: '#F5F0E8' }}>{(workerName || 'W')[0].toUpperCase()}</Text>
                         </View>
                       )}
-                      <View style={{ flex: 1, marginLeft: 10 }}>
+                      <View style={{ flex: 1, marginLeft: 12 }}>
                         <Text style={styles.rebookWorkerName} numberOfLines={1}>{workerName}</Text>
                         <Text style={styles.rebookService} numberOfLines={1}>{t(w.serviceName)}</Text>
                       </View>
                     </View>
+                    
+                    <View style={styles.rebookDivider} />
+
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <Text style={styles.rebookPrice}>₹{price.toLocaleString('en-IN')}</Text>
+                      <View>
+                        <Text style={styles.rebookPriceLabel}>{t('Last paid')}</Text>
+                        <Text style={styles.rebookPrice}>₹{price.toLocaleString('en-IN')}</Text>
+                      </View>
                       <Pressable
                         style={styles.rebookPill}
                         onPress={() => { setRebookSource(w); setRebookVisible(true); }}
                       >
-                        <MaterialCommunityIcons name="refresh" size={13} color="#FF5C00" style={{ marginRight: 4 }} />
-                        <Text style={styles.rebookPillText}>{t('Re-book')}</Text>
+                        <MaterialCommunityIcons name="history" size={14} color="#FFF" style={{ marginRight: 6 }} />
+                        <Text style={styles.rebookPillText}>{t('Book again')}</Text>
                       </Pressable>
                     </View>
                   </View>
@@ -404,11 +433,12 @@ const styles = StyleSheet.create({
   categoryLabel: { fontFamily: 'Inter_400Regular', fontSize: 12, color: '#0D0D0D' },
 
   // Suggestions
-  suggestionCard: { width: 180, padding: 16, marginRight: 12, backgroundColor: '#FFFFFF', borderRadius: 16, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, borderWidth: 1, borderColor: '#F0F0F0' },
-  scoreBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#FFF9E6', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, alignSelf: 'flex-start', marginBottom: 12 },
-  scoreText: { fontFamily: 'SpaceMono_700Bold', fontSize: 11, color: '#B28200' },
-  workerName: { fontFamily: 'Inter_700Bold', fontSize: 15, color: '#202124', marginBottom: 8 },
-  reasonTag: { fontFamily: 'Inter_500Medium', fontSize: 11, color: '#5F6368', backgroundColor: '#F1F3F4', paddingHorizontal: 8, paddingVertical: 4, marginBottom: 4, borderRadius: 6, alignSelf: 'flex-start' },
+  suggestionCard: { width: 220, padding: 16, marginRight: 16, backgroundColor: '#FFFFFF', borderRadius: 16, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 12, borderWidth: 1, borderColor: '#F0F0F0' },
+  scoreBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#FFF5E5', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, alignSelf: 'flex-start', marginBottom: 12 },
+  scoreText: { fontFamily: 'SpaceMono_700Bold', fontSize: 11, color: '#D97706' },
+  workerName: { fontFamily: 'Inter_700Bold', fontSize: 16, color: '#202124', marginBottom: 12 },
+  reasonTag: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 6, marginBottom: 6, borderRadius: 8, alignSelf: 'flex-start', maxWidth: '100%' },
+  reasonText: { fontFamily: 'Inter_500Medium', fontSize: 11, flexShrink: 1, lineHeight: 16 },
 
   // Top workers
   topWorkerCard: { width: 160, padding: 16, marginRight: 12, backgroundColor: '#FFFFFF', borderRadius: 16, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, borderWidth: 1, borderColor: '#F0F0F0' },
@@ -427,12 +457,14 @@ const styles = StyleSheet.create({
   referralText: { fontFamily: 'Inter_400Regular', fontSize: 12, color: '#6B6B6B', flex: 1 },
 
   // Book again
-  rebookCard: { width: 200, padding: 16, marginRight: 12, backgroundColor: '#FFFFFF', borderRadius: 16, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, borderWidth: 1, borderColor: '#F0F0F0' },
-  rebookAvatar: { width: 40, height: 40, borderRadius: 20 },
-  rebookAvatarPlaceholder: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#0D0D0D', justifyContent: 'center', alignItems: 'center' },
-  rebookWorkerName: { fontFamily: 'Inter_700Bold', fontSize: 14, color: '#202124' },
-  rebookService: { fontFamily: 'Inter_500Medium', fontSize: 11, color: '#5F6368', marginTop: 2 },
-  rebookPrice: { fontFamily: 'SpaceMono_700Bold', fontSize: 14, color: '#0D0D0D' },
-  rebookPill: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF0E8', borderWidth: 1, borderColor: '#FF5C00', borderRadius: 16, paddingHorizontal: 10, paddingVertical: 6 },
-  rebookPillText: { fontFamily: 'Inter_600SemiBold', fontSize: 11, color: '#FF5C00' },
+  rebookCard: { width: 240, padding: 16, marginRight: 16, backgroundColor: '#FFFFFF', borderRadius: 16, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 12, borderWidth: 1, borderColor: '#F0F0F0' },
+  rebookAvatar: { width: 46, height: 46, borderRadius: 23 },
+  rebookAvatarPlaceholder: { width: 46, height: 46, borderRadius: 23, backgroundColor: '#0D0D0D', justifyContent: 'center', alignItems: 'center' },
+  rebookWorkerName: { fontFamily: 'Inter_700Bold', fontSize: 15, color: '#202124' },
+  rebookService: { fontFamily: 'Inter_500Medium', fontSize: 12, color: '#5F6368', marginTop: 2 },
+  rebookDivider: { height: 1, backgroundColor: '#F1F3F4', marginBottom: 12 },
+  rebookPriceLabel: { fontFamily: 'Inter_500Medium', fontSize: 10, color: '#5F6368', marginBottom: 2 },
+  rebookPrice: { fontFamily: 'SpaceMono_700Bold', fontSize: 15, color: '#202124' },
+  rebookPill: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#1A73E8', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, elevation: 2, shadowColor: '#1A73E8', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4 },
+  rebookPillText: { fontFamily: 'Inter_600SemiBold', fontSize: 12, color: '#FFFFFF' },
 });

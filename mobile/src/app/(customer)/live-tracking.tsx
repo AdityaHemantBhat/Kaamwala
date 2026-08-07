@@ -10,6 +10,7 @@ import { socketService } from '../../api/socket';
 import { useT } from '../../utils/i18n';
 import { env } from '../../config/env';
 import { getCachedLocation, cacheLocation } from '../../utils/locationCache';
+import { useAuthStore } from '../../store/auth.store';
 
 // Interactive map shell mounted once; markers move in place via injected
 // window.updateMarkers / window.setDestination. OSRM route is throttled.
@@ -169,7 +170,8 @@ export default function LiveTracking() {
     // if Socket.IO delivery fails. This prevents the race condition where
     // the OTP never appears because socket messages are lost.
     pollInterval = setInterval(() => {
-      if (!cancelled) {
+      const { isAuthenticated } = useAuthStore.getState();
+      if (!cancelled && isAuthenticated) {
         loadTracking().catch(() => {});
       }
     }, 5000);

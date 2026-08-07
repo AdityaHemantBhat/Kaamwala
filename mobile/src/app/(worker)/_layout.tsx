@@ -81,31 +81,33 @@ export default function WorkerLayout() {
 
   const handleAccept = async () => {
     if (!incomingBooking) return;
-    setActionLoading(true);
+    const bookingId = incomingBooking.id;
+    
+    // Optimistic UI: Close modal and navigate immediately
+    setIncomingBooking(null);
+    setTimeout(() => {
+      router.push('/(worker)/bookings');
+    }, 0);
+    
     try {
-      await apiClient.patch(`/bookings/${incomingBooking.id}/status`, { status: 'ACCEPTED' });
+      await apiClient.patch(`/bookings/${bookingId}/status`, { status: 'ACCEPTED' });
       showToast({ message: t('Booking accepted!'), type: 'success' });
-      setIncomingBooking(null);
-      setTimeout(() => {
-        router.push('/(worker)/bookings');
-      }, 0);
     } catch (e: any) {
       showToast({ message: e?.response?.data?.error || t('Failed to accept'), type: 'error' });
-    } finally {
-      setActionLoading(false);
     }
   };
 
   const handleReject = async () => {
     if (!incomingBooking) return;
-    setActionLoading(true);
+    const bookingId = incomingBooking.id;
+    
+    // Optimistic UI: Close modal immediately
+    setIncomingBooking(null);
+    
     try {
-      await apiClient.patch(`/bookings/${incomingBooking.id}/status`, { status: 'CANCELLED', reasonCategory: 'OTHER', cancelReason: 'Worker rejected' });
-      setIncomingBooking(null);
+      await apiClient.patch(`/bookings/${bookingId}/status`, { status: 'CANCELLED', reasonCategory: 'OTHER', cancelReason: 'Worker rejected' });
     } catch {
       showToast({ message: t('Failed to reject'), type: 'error' });
-    } finally {
-      setActionLoading(false);
     }
   };
 
@@ -172,7 +174,9 @@ export default function WorkerLayout() {
               <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                 <Text style={{ fontFamily: 'Inter_500Medium', fontSize: 13, color: '#6B6B6B' }}>{t('Scheduled for')}:</Text>
                 <Text style={{ fontFamily: 'Inter_600SemiBold', fontSize: 13, color: '#0D0D0D' }}>
-                  {incomingBooking?.scheduledAt ? new Date(incomingBooking.scheduledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : t('Now')}
+                  {incomingBooking?.scheduledAt 
+                    ? `${new Date(incomingBooking.scheduledAt).toLocaleDateString([], { month: 'short', day: 'numeric' })} · ${new Date(incomingBooking.scheduledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` 
+                    : t('Now')}
                 </Text>
               </View>
             </View>

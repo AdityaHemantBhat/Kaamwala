@@ -664,6 +664,7 @@ model Booking {
   plusDiscount       Float                @default(0)
   // ─────────────────────────────────────────────────────────────────
   
+  completionPhotos   String[]             @default([])
   marketRate         Float?
   customerSaved      Float                @default(0)
   // Labour/material/visit-fee separation — never teach labour pricing

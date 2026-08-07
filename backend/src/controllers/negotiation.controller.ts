@@ -127,13 +127,40 @@ export const negotiationController = {
         data: { respondedAt: new Date() },
       });
 
+      const { paymentCalculationService } = await import('../services/paymentCalculation.service');
+      const { getWorkerPlan } = await import('../services/workerPlans.service');
+      
+      const planResult = await getWorkerPlan(booking.workerId);
+      const workerPlanTier = planResult.commissionPercent === 5 ? 'ELITE' : planResult.commissionPercent === 10 ? 'PRO' : 'FREE';
+
+      const customerSub = await prisma.userSubscription.findUnique({ where: { userId: booking.customerId } });
+      const subActive = customerSub?.status === 'active' && (!customerSub.currentPeriodEnd || new Date(customerSub.currentPeriodEnd) > new Date());
+      const customerPlan = subActive ? customerSub.plan : 'BASIC';
+      const customerProfile = await prisma.customerProfile.findUnique({ where: { userId: booking.customerId } });
+
+      const calculatedPayment = await paymentCalculationService.calculateStandardBookingPayment({
+        baseAmount: lastOffer.amount,
+        bookingType: booking.type === 'EMERGENCY' ? 'EMERGENCY' : 'STANDARD',
+        workerPlanTier,
+        customerSubscriptionPlan: customerPlan,
+        customerSubscriptionActive: subActive,
+        pendingCancellationFee: customerProfile?.pendingCancellationFee || 0,
+        marketReferencePrice: Number(booking.marketRate) || 0,
+      });
+
       await prisma.booking.update({
         where: { id: req.params.bookingId },
         data: {
           status: 'ACCEPTED',
           negotiatedAmount: lastOffer.amount,
-          totalAmount: lastOffer.amount + booking.platformFee,
-          workerEarnings: lastOffer.amount - booking.platformFee,
+          baseAmount: lastOffer.amount, // Set the negotiated amount as the new base
+          platformFeePercent: calculatedPayment.platformFeePercent,
+          platformFee: calculatedPayment.platformFee,
+          workerEarnings: calculatedPayment.workerEarnings,
+          subscriptionDiscount: calculatedPayment.subscriptionDiscount,
+          totalAmount: calculatedPayment.totalAmount,
+          customerSaved: calculatedPayment.customerSaved,
+          calculatedAt: calculatedPayment.metadata.timestamp,
         },
       });
 

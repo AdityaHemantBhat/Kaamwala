@@ -17,7 +17,7 @@ import { logger } from '../utils/logger';
  * 5. Pricing anomalies (daily) — detect market pricing anomalies
  */
 
-type JobName = 'urgentExpiry' | 'orphanMediaCleanup' | 'issuePromotion' | 'issueDemotion' | 'pricingAnomalies';
+type JobName = 'urgentExpiry' | 'orphanMediaCleanup' | 'issuePromotion' | 'issueDemotion' | 'pricingAnomalies' | 'pendingBookingExpiry';
 
 export class ScheduledJobsScheduler {
   private jobTimers: Map<JobName, NodeJS.Timeout> = new Map();
@@ -47,6 +47,7 @@ export class ScheduledJobsScheduler {
     this.startIssuePromotionJob();
     this.startIssueDemotionJob();
     this.startPricingAnomaliesJob();
+    this.startPendingBookingExpiryJob();
   }
 
   /**
@@ -186,6 +187,34 @@ export class ScheduledJobsScheduler {
 
     const timer = setInterval(runJob, interval);
     this.jobTimers.set('pricingAnomalies', timer);
+  }
+
+  /**
+   * Pending booking expiry job: expire PENDING/NEGOTIATING requests after 24h.
+   * Runs hourly.
+   */
+  private startPendingBookingExpiryJob(): void {
+    const interval = 60 * 60 * 1000; // 1 hour
+
+    const runJob = async () => {
+      try {
+        const { expirePendingBookings } = await import('./scheduledJobs.service');
+        const count = await expirePendingBookings();
+        if (count > 0) {
+          logger.debug(`[Jobs] Pending booking expiry: expired ${count} requests`);
+        }
+      } catch (error: any) {
+        logger.error(
+          '[Jobs] Pending booking expiry job failed:',
+          error instanceof Error ? error.message : String(error),
+        );
+      }
+    };
+
+    logger.info('[Startup] Starting pending booking expiry job (hourly)');
+
+    const timer = setInterval(runJob, interval);
+    this.jobTimers.set('pendingBookingExpiry', timer);
   }
 
   /**

@@ -162,6 +162,7 @@ export const bookingService = {
           status: BookingStatus.PENDING,
           paymentStatus: PaymentStatus.PENDING,
           baseAmount,
+          customerNotes: data.customerNotes || null,
           platformFeePercent: calculatedPayment.platformFeePercent,
           platformFee: calculatedPayment.platformFee,
           workerEarnings: calculatedPayment.workerEarnings,
@@ -221,7 +222,7 @@ export const bookingService = {
     DISPUTED:    [], // terminal
   } as Record<string, string[]>,
 
-  async updateStatus(bookingId: string, status: BookingStatus, actorId: string, actorRole: string, otp?: string) {
+  async updateStatus(bookingId: string, status: BookingStatus, actorId: string, actorRole: string, otp?: string, completionPhotos?: string[]) {
     const booking = await prisma.booking.findUnique({ where: { id: bookingId } });
     if (!booking) throw new Error('Booking not found');
 
@@ -260,6 +261,23 @@ export const bookingService = {
 
     switch (status) {
       case BookingStatus.ACCEPTED:
+        // ── Overlap Conflict Prevention ──
+        // Prevent worker from accepting a booking if they already have one scheduled within ±2 hours.
+        const overlaps = await prisma.booking.findFirst({
+          where: {
+            workerId: booking.workerId,
+            status: { in: ['ACCEPTED', 'ON_THE_WAY', 'IN_PROGRESS'] },
+            id: { not: bookingId },
+            scheduledAt: {
+              gte: new Date(booking.scheduledAt.getTime() - 2 * 60 * 60 * 1000),
+              lte: new Date(booking.scheduledAt.getTime() + (booking.estimatedDuration * 60 * 1000) + (1 * 60 * 60 * 1000))
+            }
+          }
+        });
+        if (overlaps) {
+          throw new Error('Conflict: You already have an active booking scheduled around this time.');
+        }
+
         updateData.acceptedAt = new Date();
         // Generate arrival OTP immediately so the customer can see the
         // QR code as soon as the worker accepts — not only when the
@@ -290,11 +308,15 @@ export const bookingService = {
         }
         updateData.startedAt = new Date();
         break;
-      case BookingStatus.COMPLETED:
-        updateData.completedAt = new Date();
-        // Completing a job counts as an active day for the streak.
-        await recordWorkerStreak(booking.workerId);
-        break;
+        case BookingStatus.COMPLETED:
+          if (!completionPhotos || completionPhotos.length === 0) {
+            throw new Error('You must provide photos of the completed work to finish this booking');
+          }
+          updateData.completedAt = new Date();
+          updateData.completionPhotos = completionPhotos;
+          // Completing a job counts as an active day for the streak.
+          await recordWorkerStreak(booking.workerId);
+          break;
       case BookingStatus.CANCELLED:
         // NOTE: the route layer intercepts CANCELLED and routes it through
         // cancellationService.initiateCancellation (the single canonical cancel

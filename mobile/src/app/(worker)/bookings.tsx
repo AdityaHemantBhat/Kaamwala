@@ -19,6 +19,7 @@ const ORANGE = '#FF5C00';
 
 const STATUS_STYLE: Record<string, { label: string; color: string; bg: string }> = {
   PENDING:     { label: 'New',      color: '#FF5C00', bg: '#FFF0E8' },
+  NEGOTIATING: { label: 'Negotiating', color: '#B06000', bg: '#FFF3E0' },
   ACCEPTED:    { label: 'Accepted', color: '#2196F3', bg: '#E3F2FD' },
   ON_THE_WAY:  { label: 'On Way',   color: '#FF5C00', bg: '#FFF0E8' },
   IN_PROGRESS: { label: 'Working',  color: '#0D0D0D', bg: '#EDE8DC' },
@@ -30,6 +31,7 @@ const STATUS_STYLE: Record<string, { label: string; color: string; bg: string }>
 // (IN_PROGRESS) reads like a code, not a sentence.
 const STATUS_LABEL: Record<string, string> = {
   PENDING:     'Pending',
+  NEGOTIATING: 'Negotiating',
   ACCEPTED:    'Accepted',
   ON_THE_WAY:  'On the way',
   IN_PROGRESS: 'In progress',
@@ -57,12 +59,21 @@ export default function WorkerBookings() {
   const [showManualOtp, setShowManualOtp] = useState(false);
   const [permission, requestPermission] = useCameraPermissions();
 
+  // Negotiation / Counter Offer
+  const [counterModal, setCounterModal] = useState<{ visible: boolean; booking: any }>({ visible: false, booking: null });
+  const [counterAmount, setCounterAmount] = useState('');
+  const [counterSubmitting, setCounterSubmitting] = useState(false);
+
   // Job-photo submission (before/after evidence for guarantee claims)
   const [photoModal, setPhotoModal] = useState<any>(null);
   const [photoBefore, setPhotoBefore] = useState<string | null>(null);
   const [photoAfter, setPhotoAfter] = useState<string | null>(null);
   const [photoCaption, setPhotoCaption] = useState('');
   const [photoSubmitting, setPhotoSubmitting] = useState(false);
+
+  const [completionModal, setCompletionModal] = useState<{ visible: boolean; booking: any }>({ visible: false, booking: null });
+  const [completionPhotos, setCompletionPhotos] = useState<string[]>([]);
+  const [uploadingPhotos, setUploadingPhotos] = useState(false);
 
   // Scope-change proposal (worker proposes; customer must approve)
   const [changeModal, setChangeModal] = useState<any>(null);
@@ -129,10 +140,10 @@ export default function WorkerBookings() {
     })();
   }, [cancelModal.visible, cancelModal.booking?.id, cancelModal.booking?.cancelRequestStatus]);
 
-  const updateStatus = async (id: string, status: string, otp?: string) => {
+  const updateStatus = async (id: string, status: string, otp?: string, completionPhotos?: string[]) => {
     setUpdatingId(id);
     try {
-      await apiClient.patch(`/bookings/${id}/status`, { status, otp });
+      await apiClient.patch(`/bookings/${id}/status`, { status, otp, completionPhotos });
       showToast({ message: `${t('Status updated to')} ${t(STATUS_LABEL[status] || status)}`, type: 'success' });
       loadBookings();
       // Navigate to live tracking when going on the way
@@ -142,6 +153,37 @@ export default function WorkerBookings() {
     } catch (e: any) {
       showToast({ message: e?.response?.data?.error || t('Failed to update'), type: 'error' });
     } finally { setUpdatingId(null); }
+  };
+
+  const acceptOffer = async (id: string) => {
+    setUpdatingId(id);
+    try {
+      await apiClient.post(`/negotiation/${id}/accept`);
+      showToast({ message: t('Offer accepted!'), type: 'success' });
+      loadBookings();
+    } catch (e: any) {
+      showToast({ message: e?.response?.data?.error || t('Failed to accept offer'), type: 'error' });
+    } finally { setUpdatingId(null); }
+  };
+
+  const submitCounterOffer = async () => {
+    if (!counterModal.booking) return;
+    const amount = parseFloat(counterAmount);
+    if (isNaN(amount) || amount <= 0) return showToast({ message: t('Enter a valid amount'), type: 'error' });
+    
+    setCounterSubmitting(true);
+    try {
+      await apiClient.post(`/negotiation/${counterModal.booking.id}/make-offer`, {
+        amount,
+        message: 'Counter offer from worker'
+      });
+      showToast({ message: t('Counter offer sent!'), type: 'success' });
+      setCounterModal({ visible: false, booking: null });
+      setCounterAmount('');
+      loadBookings();
+    } catch (e: any) {
+      showToast({ message: e?.response?.data?.error || t('Failed to send counter offer'), type: 'error' });
+    } finally { setCounterSubmitting(false); }
   };
 
   const uploadPhoto = async (uri: string): Promise<string> => {
@@ -239,6 +281,52 @@ export default function WorkerBookings() {
     return date.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true });
   };
 
+  const pickCompletionPhoto = async () => {
+    let result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      quality: 0.8,
+    });
+    if (!result.canceled && result.assets && result.assets.length > 0) {
+      setCompletionPhotos(prev => [...prev, result.assets[0].uri]);
+    }
+  };
+
+  const removeCompletionPhoto = (index: number) => {
+    setCompletionPhotos(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const submitCompletionPhotos = async () => {
+    if (!completionModal.booking) return;
+    if (completionPhotos.length === 0) {
+      return showToast({ message: t('Please add at least one photo'), type: 'error' });
+    }
+    
+    setUploadingPhotos(true);
+    try {
+      const uploadedUrls: string[] = [];
+      for (const uri of completionPhotos) {
+        if (!uri.startsWith('http')) {
+          const fd = new FormData();
+          fd.append('file', { uri, type: 'image/jpeg', name: 'photo.jpg' } as any);
+          fd.append('purpose', 'completion');
+          const up = await apiClient.post('/upload', fd);
+          uploadedUrls.push(up.data?.data?.url || uri);
+        } else {
+          uploadedUrls.push(uri);
+        }
+      }
+      
+      await updateStatus(completionModal.booking.id, 'COMPLETED', undefined, uploadedUrls);
+      setCompletionModal({ visible: false, booking: null });
+      setCompletionPhotos([]);
+    } catch (e: any) {
+      showToast({ message: e?.response?.data?.error || t('Failed to upload photos'), type: 'error' });
+    } finally {
+      setUploadingPhotos(false);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.header}>
@@ -289,6 +377,14 @@ export default function WorkerBookings() {
                   <Text style={styles.detailText}>{customerName}</Text>
                 </View>
 
+                {/* Notes from customer */}
+                {booking.description && (
+                  <View style={styles.detailRow}>
+                    <MaterialCommunityIcons name="text" size={16} color="#666" />
+                    <Text style={[styles.detailText, { flexShrink: 1 }]} numberOfLines={2}>{booking.description}</Text>
+                  </View>
+                )}
+
                 {/* Schedule */}
                 <View style={styles.detailRow}>
                   <MaterialCommunityIcons name="calendar-clock" size={16} color="#666" />
@@ -303,13 +399,13 @@ export default function WorkerBookings() {
 
                 {/* Actions */}
                 <View style={styles.actionsRow}>
-                  {booking.status === 'PENDING' ? (
+                  {booking.status === 'PENDING' || booking.status === 'NEGOTIATING' ? (
                     /* Pending bookings show Accept + Reject side-by-side with
                        equal spacing — the worker decides at a glance. */
                     <View style={styles.pendingActions}>
                       <Pressable
                         style={[styles.pendingActionBtn, styles.acceptBtn]}
-                        onPress={() => updateStatus(booking.id, 'ACCEPTED')}
+                        onPress={() => booking.status === 'NEGOTIATING' ? acceptOffer(booking.id) : updateStatus(booking.id, 'ACCEPTED')}
                         disabled={updatingId === booking.id}
                         accessibilityRole="button"
                         accessibilityLabel={t('Accept booking')}
@@ -319,10 +415,22 @@ export default function WorkerBookings() {
                         ) : (
                           <>
                             <MaterialCommunityIcons name="check" size={18} color="#FFF" />
-                            <Text style={styles.actionBtnText}>{t('Accept')}</Text>
+                            <Text style={styles.actionBtnText}>{booking.status === 'NEGOTIATING' ? t('Accept Offer') : t('Accept')}</Text>
                           </>
                         )}
                       </Pressable>
+                      {booking.status === 'NEGOTIATING' && (
+                        <Pressable
+                          style={[styles.pendingActionBtn, { backgroundColor: '#B06000' }]}
+                          onPress={() => {
+                            setCounterAmount('');
+                            setCounterModal({ visible: true, booking });
+                          }}
+                        >
+                          <MaterialCommunityIcons name="swap-horizontal" size={18} color="#FFF" />
+                          <Text style={styles.actionBtnText}>{t('Counter')}</Text>
+                        </Pressable>
+                      )}
                       <Pressable
                         style={[styles.pendingActionBtn, styles.rejectBtn]}
                         onPress={() => {
@@ -346,6 +454,9 @@ export default function WorkerBookings() {
                           if ((action as any).needsOtp) {
                             setOtpValue('');
                             setOtpModal({ visible: true, bookingId: booking.id });
+                          } else if (action.nextStatus === 'COMPLETED') {
+                            setCompletionPhotos([]);
+                            setCompletionModal({ visible: true, booking });
                           } else {
                             updateStatus(booking.id, action.nextStatus);
                           }
@@ -396,7 +507,7 @@ export default function WorkerBookings() {
                     )}
 
                     {/* Chat — active bookings only */}
-                    {(booking.status === 'ACCEPTED' || booking.status === 'ON_THE_WAY' || booking.status === 'IN_PROGRESS') && (
+                    {(booking.status === 'ACCEPTED' || booking.status === 'ON_THE_WAY' || booking.status === 'IN_PROGRESS' || booking.status === 'PENDING' || booking.status === 'NEGOTIATING') && (
                       <Pressable
                         style={({ pressed }) => [
                           styles.chatIconBtn,
@@ -409,14 +520,14 @@ export default function WorkerBookings() {
                         accessibilityRole="button"
                         accessibilityLabel={t('Open chat')}
                       >
-                        <MaterialCommunityIcons name="whatsapp" size={20} color="#FFF" />
-                        {unreadMessages[booking.id] ? (
+                        <MaterialCommunityIcons name="message-text" size={20} color="#FFF" />
+                        {unreadMessages[booking.id] > 0 && (
                           <View style={styles.unreadBadge}>
                             <Text style={styles.unreadBadgeText}>
                               {unreadMessages[booking.id] > 99 ? '99+' : unreadMessages[booking.id]}
                             </Text>
                           </View>
-                        ) : null}
+                        )}
                       </Pressable>
                     )}
 
@@ -880,6 +991,98 @@ export default function WorkerBookings() {
           </KeyboardAvoidingView>
         </View>
       </Modal>
+      {/* Counter Offer Modal */}
+      <Modal visible={counterModal.visible} transparent animationType="fade" onRequestClose={() => setCounterModal({ visible: false, booking: null })}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
+          <KeyboardAvoidingView behavior="padding" automaticOffset>
+          <View style={{ backgroundColor: '#FFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24 }}>
+            <View style={{ width: 40, height: 4, backgroundColor: '#DDD', borderRadius: 2, alignSelf: 'center', marginBottom: 20 }} />
+            <Text style={{ fontSize: 20, fontFamily: 'Inter_700Bold', color: '#0D0D0D', marginBottom: 16 }}>{t('Counter Offer')}</Text>
+            
+            <View style={{ marginBottom: 20 }}>
+              <Text style={{ fontSize: 14, fontFamily: 'Inter_500Medium', color: '#666', marginBottom: 8 }}>{t('Enter your price (₹)')}</Text>
+              <TextInput
+                style={{ width: '100%', borderWidth: 1, borderColor: '#DDD', borderRadius: 12, padding: 14, fontSize: 16, fontFamily: 'Inter_500Medium' }}
+                placeholder="0"
+                keyboardType="numeric"
+                value={counterAmount}
+                onChangeText={setCounterAmount}
+                autoFocus
+              />
+            </View>
+
+            <Pressable
+              style={{ width: '100%', paddingVertical: 16, borderRadius: 16, backgroundColor: '#0D0D0D', alignItems: 'center', marginBottom: 12 }}
+              onPress={submitCounterOffer}
+              disabled={counterSubmitting}
+            >
+              {counterSubmitting ? (
+                <ActivityIndicator size="small" color="#FFF" />
+              ) : (
+                <Text style={{ fontSize: 16, fontFamily: 'Inter_600SemiBold', color: '#FFF' }}>{t('Send Counter Offer')}</Text>
+              )}
+            </Pressable>
+            
+            <Pressable
+              style={{ width: '100%', paddingVertical: 14, borderRadius: 16, borderWidth: 1.5, borderColor: '#DDD', alignItems: 'center' }}
+              onPress={() => setCounterModal({ visible: false, booking: null })}
+            >
+              <Text style={{ fontSize: 14, fontFamily: 'Inter_500Medium', color: '#666' }}>{t('Cancel')}</Text>
+            </Pressable>
+          </View>
+          </KeyboardAvoidingView>
+        </View>
+      </Modal>
+      {/* Completion Modal */}
+      <Modal visible={completionModal.visible} transparent animationType="slide" onRequestClose={() => setCompletionModal({ visible: false, booking: null })}>
+        <View style={styles.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setCompletionModal({ visible: false, booking: null })} />
+          <KeyboardAvoidingView behavior="padding" automaticOffset style={{ maxHeight: '85%' }}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>{t('Complete Booking')}</Text>
+            {completionModal.booking && (
+              <Text style={styles.modalSub}>#{completionModal.booking.bookingNumber} · {t(completionModal.booking.serviceName)}</Text>
+            )}
+            <Text style={styles.photoHint}>{t('Please upload at least one photo of the completed work. This serves as proof of work for the customer before they pay.')}</Text>
+            
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 20 }}>
+              {completionPhotos.map((photo, idx) => (
+                <View key={idx} style={{ width: 80, height: 80, borderRadius: 12, overflow: 'hidden' }}>
+                  <Image source={{ uri: photo }} style={{ width: '100%', height: '100%' }} />
+                  <Pressable
+                    style={{ position: 'absolute', top: 4, right: 4, backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 12, padding: 2 }}
+                    onPress={() => removeCompletionPhoto(idx)}
+                  >
+                    <MaterialCommunityIcons name="close" size={16} color="#FFF" />
+                  </Pressable>
+                </View>
+              ))}
+              <Pressable
+                style={{ width: 80, height: 80, borderRadius: 12, borderWidth: 1, borderColor: '#DDD', borderStyle: 'dashed', justifyContent: 'center', alignItems: 'center' }}
+                onPress={pickCompletionPhoto}
+              >
+                <MaterialCommunityIcons name="camera-plus-outline" size={24} color="#666" />
+                <Text style={{ fontSize: 10, color: '#666', marginTop: 4 }}>{t('Add Photo')}</Text>
+              </Pressable>
+            </View>
+
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <Pressable style={[styles.photoSubmitBtn, { backgroundColor: '#1A5C2A' }, uploadingPhotos && { opacity: 0.5 }]} onPress={submitCompletionPhotos} disabled={uploadingPhotos}>
+                {uploadingPhotos ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.photoSubmitText}>{t('Submit & Complete')}</Text>
+                )}
+              </Pressable>
+              <Pressable style={[styles.photoCancelBtn]} onPress={() => setCompletionModal({ visible: false, booking: null })}>
+                <Text style={styles.photoCancelText}>{t('Cancel')}</Text>
+              </Pressable>
+            </View>
+          </View>
+          </KeyboardAvoidingView>
+        </View>
+      </Modal>
+
     </SafeAreaView>
   );
 }

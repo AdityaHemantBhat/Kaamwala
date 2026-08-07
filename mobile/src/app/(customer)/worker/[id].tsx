@@ -177,13 +177,13 @@ export default function WorkerDetailScreen() {
 
         {/* Book Now */}
         <Pressable
-          style={{ backgroundColor: '#FF5C00', borderRadius: 16, paddingVertical: 16, alignItems: 'center', elevation: 3, opacity: worker.services?.length ? 1 : 0.7 }}
+          style={{ backgroundColor: '#FF5C00', borderRadius: 16, paddingVertical: 16, paddingHorizontal: 20, alignItems: 'center', elevation: 3, opacity: worker.services?.length ? 1 : 0.7 }}
           onPress={() => {
             useBookingStore.getState().setPendingBooking(id, worker, selectedService);
             router.push('/(customer)/bookings');
           }}
         >
-          <Text style={{ fontFamily: 'Inter_700Bold', fontSize: 16, color: '#FFF' }}>
+          <Text style={{ fontFamily: 'Inter_700Bold', fontSize: 16, color: '#FFF' }} numberOfLines={1} ellipsizeMode="tail">
             {t('Book')} {name.split(' ')[0]}{selectedService ? ` · ${selectedService.name}` : ''}
           </Text>
         </Pressable>

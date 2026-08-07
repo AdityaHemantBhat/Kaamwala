@@ -23,8 +23,9 @@ import Animated, { FadeInUp } from 'react-native-reanimated';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { apiClient } from '../../api/client';
 import { useToast } from '../../components/ui/ToastProvider';
-import { SkeletonCustomerBookingsBody } from '../../components/ui/SkeletonScreenLayouts';
+import { SkeletonCustomerBookingCard } from '../../components/ui/SkeletonScreenLayouts';
 import BookingAddressPicker from '../../components/ui/BookingAddressPicker';
+import { FormInput } from '../../components/ui/FormInput';
 import { formatMoneyWithSymbol } from '../../utils/money';
 import { startCashfreePayment, isUserCancellation } from '../../utils/cashfree';
 import LottieView from 'lottie-react-native';
@@ -34,6 +35,7 @@ import { socketService } from '../../api/socket';
 
 type BookingStatus =
   | 'PENDING'
+  | 'NEGOTIATING'
   | 'ACCEPTED'
   | 'ON_THE_WAY'
   | 'IN_PROGRESS'
@@ -72,7 +74,7 @@ const CATEGORY_ICONS: Record<string, keyof typeof MaterialCommunityIcons.glyphMa
 
 
 
-const ACTIVE_STATUSES: BookingStatus[] = ['PENDING', 'ACCEPTED', 'ON_THE_WAY', 'IN_PROGRESS'];
+const ACTIVE_STATUSES: BookingStatus[] = ['PENDING', 'NEGOTIATING', 'ACCEPTED', 'ON_THE_WAY', 'IN_PROGRESS'];
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
@@ -134,6 +136,7 @@ export default function CustomerBookings() {
 
   const STATUS_STYLE = useMemo(() => ({
     'PENDING':     { label: t('PENDING'),     icon: 'clock-outline',            color: '#FF5C00', bg: '#FFF0E8' },
+    'NEGOTIATING': { label: t('NEGOTIATING'), icon: 'handshake-outline',        color: '#B06000', bg: '#FFF3E0' },
     'ACCEPTED':    { label: t('ACCEPTED'),    icon: 'check-circle-outline',     color: '#2196F3', bg: '#E3F2FD' },
     'ON_THE_WAY':  { label: t('ON THE WAY'),  icon: 'truck-delivery-outline',   color: '#FF5C00', bg: '#FFF0E8' },
     'IN_PROGRESS': { label: t('IN PROGRESS'), icon: 'wrench-outline',           color: '#0D0D0D', bg: '#EDE8DC' },
@@ -180,6 +183,12 @@ export default function CustomerBookings() {
   const [addresses, setAddresses] = useState<any[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
   const [addressPickerOpen, setAddressPickerOpen] = useState(false);
+  
+  // Custom Booking Fields
+  const [customerNotes, setCustomerNotes] = useState('');
+  const [expectedBudget, setExpectedBudget] = useState('');
+  const [selectedDateObj, setSelectedDateObj] = useState<Date>(new Date());
+  const [selectedTimeSlot, setSelectedTimeSlot] = useState<string>('ASAP');
 
   const selectedAddress = useMemo(
     () => addresses.find((a: any) => a.id === selectedAddressId) || null,
@@ -206,6 +215,10 @@ export default function CustomerBookings() {
     setSelectedWorker(workerData);
     setSelectedService(pendingService ?? workerData?.services?.[0] ?? null);
     setBookModalVisible(true);
+    setCustomerNotes('');
+    setExpectedBudget('');
+    setSelectedDateObj(new Date());
+    setSelectedTimeSlot('ASAP');
     // Consumed — allows re-booking the same worker later in the session.
     clearPendingBooking();
     loadAddresses();
@@ -232,19 +245,43 @@ export default function CustomerBookings() {
     }
     setCreatingBooking(true);
     try {
-      const categoryLabel = selectedWorker.category
-        ? selectedWorker.category.charAt(0).toUpperCase() + selectedWorker.category.slice(1).toLowerCase().replace(/_/g, ' ')
-        : 'Service';
+      // Combine date + time
+      let parsedDate = new Date(selectedDateObj);
+      if (selectedTimeSlot === 'ASAP') {
+        const today = new Date();
+        const isToday = parsedDate.getDate() === today.getDate() && parsedDate.getMonth() === today.getMonth() && parsedDate.getFullYear() === today.getFullYear();
+        if (isToday) {
+          parsedDate = new Date(Date.now() + 2 * 60 * 60 * 1000); // 2 hours from now
+        } else {
+          // If "ASAP" is selected for a future date, default to a sensible morning time on that date (9 AM).
+          parsedDate.setHours(9, 0, 0, 0);
+        }
+      } else {
+        const [hoursStr, minutesStr] = selectedTimeSlot.split(':');
+        parsedDate.setHours(parseInt(hoursStr, 10), parseInt(minutesStr, 10), 0, 0);
+      }
+      
       const payload = {
         workerId: selectedWorker.userId,
         serviceCategory: selectedWorker.category,
         serviceName: selectedService ? selectedService.name : `General ${categoryLabel}`,
-        description: 'Direct booking from profile',
-        scheduledAt: bookingDate.toISOString(),
+        description: customerNotes || 'Direct booking from profile',
+        scheduledAt: parsedDate.toISOString(),
         baseAmount: selectedService ? selectedService.basePrice : selectedWorker.hourlyRate,
         addressId: selectedAddressId,
       };
-      await apiClient.post('/bookings', payload);
+      const res = await apiClient.post('/bookings', payload);
+      
+      if (expectedBudget) {
+        const amount = parseFloat(expectedBudget);
+        if (!isNaN(amount) && amount > 0) {
+           await apiClient.post(`/bookings/${res.data.data.id}/make-offer`, {
+             amount: amount,
+             message: customerNotes || 'Initial offer'
+           }).catch(() => {});
+        }
+      }
+      
       showToast({ message: t('Booking request sent successfully!'), type: 'success' });
       setBookModalVisible(false);
       clearPendingBooking();
@@ -453,6 +490,18 @@ export default function CustomerBookings() {
               </Text>
             </View>
 
+            {/* ── Completion Photos ── */}
+            {item.status === 'COMPLETED' && item.completionPhotos && item.completionPhotos.length > 0 && (
+              <View style={{ marginTop: 12, paddingHorizontal: 4 }}>
+                <Text style={{ fontSize: 13, fontFamily: 'Inter_600SemiBold', color: '#0D0D0D', marginBottom: 8 }}>{t('Proof of Work')}</Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                  {item.completionPhotos.map((photo: string, idx: number) => (
+                    <Image key={idx} source={{ uri: photo }} style={{ width: 60, height: 60, borderRadius: 8 }} />
+                  ))}
+                </View>
+              </View>
+            )}
+
             {/* ── Divider ── */}
             <View style={styles.divider} />
 
@@ -464,12 +513,20 @@ export default function CustomerBookings() {
               </View>
 
               <View style={styles.actionRow}>
-                {item.status === 'PENDING' && (
+                {(item.status === 'PENDING' || item.status === 'NEGOTIATING') && (
                   <View style={styles.actionGroup}>
                     <View style={[styles.actionPill, { backgroundColor: '#FFF0E8' }]}>
                       <MaterialCommunityIcons name="clock-outline" size={14} color="#FF5C00" style={{ marginRight: 4 }} />
                       <Text style={[styles.actionPillText, { color: '#FF5C00' }]}>{t('Waiting for worker')}</Text>
                     </View>
+                    <TouchableOpacity
+                      style={[styles.actionPill, { backgroundColor: '#0D0D0D' }]}
+                      onPress={() => router.push(`/(customer)/chat?bookingId=${item.id}` as any)}
+                      activeOpacity={0.7}
+                    >
+                      <MaterialCommunityIcons name="message-text" size={14} color="#FFFFFF" style={{ marginRight: 4 }} />
+                      <Text style={styles.actionPillText}>{t('Chat')}</Text>
+                    </TouchableOpacity>
                     <TouchableOpacity
                       style={[styles.actionPill, styles.cancelActionPill]}
                       onPress={() => setCancelModal({ visible: true, booking: item })}
@@ -491,11 +548,11 @@ export default function CustomerBookings() {
                       <Text style={styles.actionPillText}>{t('Track')}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
-                      style={[styles.actionPill, { backgroundColor: '#25D366' }]}
-                      onPress={() => router.push(`/(worker)/chat?bookingId=${item.id}` as any)}
+                      style={[styles.actionPill, { backgroundColor: '#0D0D0D' }]}
+                      onPress={() => router.push(`/(customer)/chat?bookingId=${item.id}` as any)}
                       activeOpacity={0.7}
                     >
-                      <MaterialCommunityIcons name="whatsapp" size={14} color="#FFFFFF" style={{ marginRight: 4 }} />
+                      <MaterialCommunityIcons name="message-text" size={14} color="#FFFFFF" style={{ marginRight: 4 }} />
                       <Text style={styles.actionPillText}>{t('Chat')}</Text>
                     </TouchableOpacity>
                     {(item.status === 'ACCEPTED' || item.status === 'ON_THE_WAY') && (
@@ -656,15 +713,7 @@ export default function CustomerBookings() {
     </View>
   );
 
-  // ── Loading state ─────────────────────────────────────────────────────
-
-  if (loading) {
-    return (
-      <SafeAreaView style={styles.safe} edges={['top']}>
-        <SkeletonCustomerBookingsBody />
-      </SafeAreaView>
-    );
-  }
+  // ── Loading state inline ───────────────────────────────────────────────
 
   // ── Main UI ────────────────────────────────────────────────────────────
 
@@ -746,7 +795,13 @@ export default function CustomerBookings() {
       )}
 
       {/* ── Content ── */}
-      {filteredBookings.length > 0 ? (
+      {loading ? (
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 14, gap: 14 }}>
+          {[0, 1, 2, 3].map((i) => (
+            <SkeletonCustomerBookingCard key={i} />
+          ))}
+        </ScrollView>
+      ) : filteredBookings.length > 0 ? (
         <FlatList
           data={filteredBookings}
           keyExtractor={(item) => item.id}
@@ -1196,12 +1251,9 @@ export default function CustomerBookings() {
       {/* ── Create Booking Modal ── */}
       <Modal visible={bookModalVisible} transparent animationType="slide" onRequestClose={() => setBookModalVisible(false)}>
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
-          {/* KeyboardAvoidingView lifts the sheet above the keyboard so the inline
-              address form (BookingAddressPicker) stays visible while typing;
-              inner KASV scrolls if space runs out. */}
-          <KeyboardAvoidingView behavior="padding" automaticOffset style={{ maxHeight: '85%' }}>
-          <KeyboardAwareScrollView keyboardShouldPersistTaps="handled" style={{ maxHeight: '100%' }} showsVerticalScrollIndicator={false}>
-          <View style={{ backgroundColor: '#FFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40, maxHeight: '100%' }}>
+          <KeyboardAvoidingView behavior="padding" automaticOffset style={{ flex: 1, justifyContent: 'flex-end', maxHeight: '90%' }}>
+          <View style={{ backgroundColor: '#FFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, minHeight: '60%', maxHeight: '100%' }}>
+          <KeyboardAwareScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 24, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
             <View style={{ width: 40, height: 4, backgroundColor: '#DDD', borderRadius: 2, alignSelf: 'center', marginBottom: 20 }} />
             
             {selectedWorker && (
@@ -1296,6 +1348,87 @@ export default function CustomerBookings() {
                   )}
                 </View>
 
+                {/* Scheduling and Notes */}
+                <View style={{ marginBottom: 20 }}>
+                  <Text style={{ fontFamily: 'Inter_600SemiBold', fontSize: 14, color: '#0D0D0D', marginBottom: 10 }}>{t('When do you need this?')}</Text>
+                  
+                  {/* Date Chips */}
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, marginBottom: 12 }}>
+                    {[0, 1, 2, 3, 4].map((offset) => {
+                      const d = new Date();
+                      d.setDate(d.getDate() + offset);
+                      const isSelected = selectedDateObj.getDate() === d.getDate() && selectedDateObj.getMonth() === d.getMonth();
+                      let label = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+                      if (offset === 0) label = t('Today');
+                      if (offset === 1) label = t('Tomorrow');
+                      return (
+                        <TouchableOpacity
+                          key={offset}
+                          style={{
+                            paddingVertical: 10, paddingHorizontal: 16, borderRadius: 12, borderWidth: 1,
+                            borderColor: isSelected ? '#FF5C00' : '#DDD',
+                            backgroundColor: isSelected ? '#FFF0E8' : '#FFF',
+                          }}
+                          onPress={() => setSelectedDateObj(d)}
+                        >
+                          <Text style={{ fontFamily: 'Inter_600SemiBold', fontSize: 13, color: isSelected ? '#FF5C00' : '#0D0D0D' }}>
+                            {label}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
+
+                  {/* Time Chips */}
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, marginBottom: 20 }}>
+                    {['ASAP', '09:00', '11:00', '13:00', '15:00', '17:00', '19:00'].map((time) => {
+                      const isSelected = selectedTimeSlot === time;
+                      let label = time;
+                      if (time === 'ASAP') label = t('As soon as possible');
+                      else {
+                        const [h, m] = time.split(':');
+                        const date = new Date();
+                        date.setHours(parseInt(h, 10), parseInt(m, 10));
+                        label = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+                      }
+                      return (
+                        <TouchableOpacity
+                          key={time}
+                          style={{
+                            paddingVertical: 10, paddingHorizontal: 16, borderRadius: 12, borderWidth: 1,
+                            borderColor: isSelected ? '#FF5C00' : '#DDD',
+                            backgroundColor: isSelected ? '#FFF0E8' : '#FFF',
+                          }}
+                          onPress={() => setSelectedTimeSlot(time)}
+                        >
+                          <Text style={{ fontFamily: 'Inter_600SemiBold', fontSize: 13, color: isSelected ? '#FF5C00' : '#0D0D0D' }}>
+                            {label}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
+                  <FormInput
+                     label={t('Expected Budget (Optional)')}
+                     value={expectedBudget}
+                     onChangeText={setExpectedBudget}
+                     placeholder="e.g. 500"
+                     keyboardType="numeric"
+                     containerStyle={{ marginBottom: 12 }}
+                     leftElement={<Text style={{ fontFamily: 'Inter_500Medium', color: '#6B6B6B' }}>₹</Text>}
+                  />
+
+                  <FormInput
+                     label={t('Notes for Worker (Optional)')}
+                     value={customerNotes}
+                     onChangeText={setCustomerNotes}
+                     placeholder="Any special instructions..."
+                     multiline
+                     numberOfLines={2}
+                     containerStyle={{ marginBottom: 12 }}
+                  />
+                </View>
+
                 {/* Info Note */}
                 <View style={{ backgroundColor: '#F5F0E8', padding: 12, borderRadius: 12, marginBottom: 20 }}>
                   <Text style={{ fontFamily: 'Inter_400Regular', fontSize: 12, color: '#6B6B6B', textAlign: 'center' }}>
@@ -1326,8 +1459,8 @@ export default function CustomerBookings() {
                 </TouchableOpacity>
               </>
             )}
-          </View>
           </KeyboardAwareScrollView>
+          </View>
           </KeyboardAvoidingView>
         </View>
       </Modal>
