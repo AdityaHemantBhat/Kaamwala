@@ -321,6 +321,37 @@ export default function WorkerDashboard() {
           </View>
         </View>
 
+        {/* ── Subscription Promo ── */}
+        {stats?.plan !== 'ELITE' && (
+          <Pressable 
+            style={{ 
+              backgroundColor: '#1A1A1A', 
+              borderRadius: 16, 
+              padding: 16, 
+              marginBottom: 20, 
+              flexDirection: 'row', 
+              alignItems: 'center',
+              elevation: 4,
+              shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 8, shadowOffset: { width: 0, height: 4 },
+              borderWidth: 1, borderColor: '#333'
+            }}
+            onPress={() => router.push('/(worker)/subscription')}
+          >
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontFamily: 'Inter_700Bold', fontSize: 16, color: '#FFD700', marginBottom: 4 }}>
+                {t('Keep 95% of your earnings')}
+              </Text>
+              <Text style={{ fontFamily: 'Inter_400Regular', fontSize: 12, color: '#E0E0E0', lineHeight: 18 }}>
+                {t('Upgrade to Elite plan and pay only 5% commission on every job you complete.')}
+              </Text>
+              <View style={{ marginTop: 12, backgroundColor: '#FFD700', alignSelf: 'flex-start', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 }}>
+                <Text style={{ fontFamily: 'Inter_600SemiBold', fontSize: 11, color: '#1A1A1A' }}>{t('Go Elite')}</Text>
+              </View>
+            </View>
+            <MaterialCommunityIcons name="crown" size={48} color="#FFD700" style={{ marginLeft: 16, opacity: 0.9 }} />
+          </Pressable>
+        )}
+
         {/* ─── Tier Progress ─── */}
         {tier.next && (
           <View style={{ backgroundColor: '#FFFFFF', borderRadius: 16, padding: 16, elevation: 2, marginBottom: 20, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 8, shadowOffset: { width: 0, height: 4 } }}>
