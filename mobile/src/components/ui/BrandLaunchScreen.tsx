@@ -88,7 +88,7 @@ export function BrandLaunchScreen({
       <View style={styles.content}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
           <Animated.View style={logoStyle}>
-            <BrandMark size={48} />
+            <BrandMark size={72} />
           </Animated.View>
 
           <Animated.View style={[styles.wordWrap, wordStyle]}>
