@@ -196,3 +196,5 @@ export function startScheduledJobs(): void {
   setInterval(() => { expirePendingBookings().catch(() => {}); }, 60 * 60 * 1000);
 }
 
+
+export { runEngagementCampaign } from './marketing.service';

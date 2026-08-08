@@ -17,7 +17,7 @@ import { logger } from '../utils/logger';
  * 5. Pricing anomalies (daily) — detect market pricing anomalies
  */
 
-type JobName = 'urgentExpiry' | 'orphanMediaCleanup' | 'issuePromotion' | 'issueDemotion' | 'pricingAnomalies' | 'pendingBookingExpiry';
+type JobName = 'urgentExpiry' | 'orphanMediaCleanup' | 'issuePromotion' | 'issueDemotion' | 'pricingAnomalies' | 'pendingBookingExpiry' | 'marketingCampaign';
 
 export class ScheduledJobsScheduler {
   private jobTimers: Map<JobName, NodeJS.Timeout> = new Map();
@@ -48,6 +48,7 @@ export class ScheduledJobsScheduler {
     this.startIssueDemotionJob();
     this.startPricingAnomaliesJob();
     this.startPendingBookingExpiryJob();
+    this.startMarketingCampaignJob();
   }
 
   /**
@@ -215,6 +216,34 @@ export class ScheduledJobsScheduler {
 
     const timer = setInterval(runJob, interval);
     this.jobTimers.set('pendingBookingExpiry', timer);
+  }
+
+  /**
+   * Marketing engagement campaign: broadcasts promotional pushes to customers.
+   * Runs daily at noon (simulated here by a 24-hour interval or similar logic, 
+   * but for this implementation we'll just run it every 24 hours).
+   */
+  private startMarketingCampaignJob(): void {
+    const interval = 24 * 60 * 60 * 1000; // 1 day
+
+    const runJob = async () => {
+      try {
+        const { runEngagementCampaign } = await import('./scheduledJobs.service');
+        const count = await runEngagementCampaign();
+        if (count > 0) {
+          logger.debug(`[Jobs] Marketing campaign: reached ${count} customers`);
+        }
+      } catch (error: any) {
+        logger.error(
+          '[Jobs] Marketing campaign job failed:',
+          error instanceof Error ? error.message : String(error),
+        );
+      }
+    };
+
+    logger.info('[Startup] Starting marketing campaign job (daily)');
+    const timer = setInterval(runJob, interval);
+    this.jobTimers.set('marketingCampaign', timer);
   }
 
   /**
