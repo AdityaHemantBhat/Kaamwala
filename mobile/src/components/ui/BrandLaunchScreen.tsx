@@ -10,10 +10,9 @@ import Animated, {
   runOnJS,
 } from 'react-native-reanimated';
 import { Wordmark } from './Wordmark';
+import { BrandMark } from './BrandMark';
 import { Colors } from '../../constants/colors';
 import { useT } from '../../utils/i18n';
-
-const AnimatedImage = Animated.createAnimatedComponent(Image);
 
 interface BrandLaunchScreenProps {
   onFinish?: () => void;
@@ -36,17 +35,8 @@ export function BrandLaunchScreen({
 }: BrandLaunchScreenProps) {
   const t = useT();
   const reduced = useReducedMotion();
-  // Reduced motion: everything visible from the start. Otherwise wait until the
-  // logo image finishes decoding before beginning the reveal.
-  const [imgReady, setImgReady] = useState(reduced);
-
-  // A bundled asset can fire `onLoad` synchronously during the first render
-  // before this component has finished mounting. Setting React state in that
-  // handler triggers React's "state update on a component that hasn't mounted
-  // yet" warning, so defer the update by one tick to land after mount.
-  const handleLogoLoaded = () => {
-    setTimeout(() => setImgReady(true), 0);
-  };
+  // No large image to decode, start ready
+  const imgReady = true;
 
   const logoOp = useSharedValue(reduced ? 1 : 0);
   const logoScale = useSharedValue(reduced ? 1 : 0.9);
@@ -96,18 +86,15 @@ export function BrandLaunchScreen({
   return (
     <Animated.View style={[styles.container, overlayStyle]}>
       <View style={styles.content}>
-        <AnimatedImage
-          source={require('../../../assets/android-icon-foreground.png')}
-          style={[styles.logo, logoStyle]}
-          resizeMode="contain"
-          fadeDuration={0}
-          onLoad={handleLogoLoaded}
-          onError={handleLogoLoaded}
-        />
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+          <Animated.View style={logoStyle}>
+            <BrandMark size={48} />
+          </Animated.View>
 
-        <Animated.View style={[styles.wordWrap, wordStyle]}>
-          <Wordmark size={34} />
-        </Animated.View>
+          <Animated.View style={[styles.wordWrap, wordStyle]}>
+            <Wordmark size={34} />
+          </Animated.View>
+        </View>
 
         <Animated.Text style={[styles.tagline, tagStyle]}>
           {t('The Honest Work Network')}
@@ -132,13 +119,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  logo: {
-    width: 280,
-    height: 280,
-    marginTop: -40, // Pull it up slightly to balance the huge padding
-  },
   wordWrap: {
-    marginTop: -10, // Pull the wordmark up closer to the logo
+    // Standard alignment for the Wordmark in a row
   },
   tagline: {
     fontFamily: 'Inter_400Regular',
