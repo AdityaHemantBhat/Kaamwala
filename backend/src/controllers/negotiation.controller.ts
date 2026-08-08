@@ -140,7 +140,7 @@ export const negotiationController = {
 
       const calculatedPayment = await paymentCalculationService.calculateStandardBookingPayment({
         baseAmount: lastOffer.amount,
-        bookingType: booking.type === 'EMERGENCY' ? 'EMERGENCY' : 'STANDARD',
+        bookingType: booking.type === 'URGENT' ? 'URGENT' : 'STANDARD',
         workerPlanTier,
         customerSubscriptionPlan: customerPlan,
         customerSubscriptionActive: subActive,
